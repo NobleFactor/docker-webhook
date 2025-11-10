@@ -32,11 +32,19 @@ endif
 
 ### CONTAINER_HOSTNAME
 
-override CONTAINER_HOSTNAME ?= webhook-$(LOCATION)$(hostname_suffix)
+override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
+
+### S6_OVERLAY_VERSION
+
+S6_OVERLAY_VERSION ?= 3.2.1.0
 
 ### WEBHOOK_VERSION
 
 WEBHOOK_VERSION ?= 2.8.2
+
+### WEBHOOK_PORT
+
+WEBHOOK_PORT ?= 9000
 
 ## IP_ADDRESS
 
@@ -52,18 +60,14 @@ export IP_RANGE
 
 TAG ?= 1.0.0-preview.1
 
-project_name := webhook
-project_root := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
-project_file := $(project_root)/$(project_name)-$(LOCATION).yaml
-project_networks_file := $(project_root)/$(project_name).networks.yaml
+override project_name := webhook
+override project_root := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
+override project_file := $(project_root)/$(project_name)-$(LOCATION).yaml
+override project_networks_file := $(project_root)/$(project_name).networks.yaml
 
 # Compose file may not exist initially; targets below will ensure generation when needed.
 
 override IMAGE := noblefactor/$(project_name):$(TAG)
-
-### WEBHOOK_PORT
-
-WEBHOOK_PORT ?= 9000
 
 ### SECRETS
 
@@ -114,7 +118,8 @@ override network_name := $(shell \
 ## TARGETS
 
 docker_compose := sudo \
-	WEBHOOK_PORT="$(WEBHOOK_PORT)" \
+    WEBHOOK_VERSION="${WEBHOOK_VERSION}" \
+    WEBHOOK_PORT="$(WEBHOOK_PORT)" \
     LOCATION="$(LOCATION)" \
     CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
     CONTAINER_DOMAIN_NAME="$(CONTAINER_DOMAIN_NAME)" \
@@ -156,7 +161,7 @@ New-WebhookLocation: ## Ensure location files exist; generate if missing or olde
 		regen=1
 	fi
 	if (( regen )); then
-		$(project_root)/bin/New-WebhookLocation --env-file="$$env_file"
+		$(project_root)/bin/New-DockerLocation --env-file="$$env_file"
 	fi
 
 ##@ Lifecycle
@@ -287,11 +292,11 @@ $(ssh_keys):
 $(container_keys): $(ssh_keys)
 	$(MAKE) Update-WebhookKeys
 
-## Location artifact rules: if missing or stale vs env/templates, (re)generate via New-HomebridgeLocation
+## Location artifact rules: if missing or stale vs env/templates, (re)generate via New-DockerLocation
 
 override env_file := $(project_root)/webhook-$(LOCATION).env
 override env_stamp := $(project_root)/.env-$(LOCATION).stamp
-override compose_template := $(project_root)/webhook.yaml.template
+override compose_template := $(project_root)/services.yaml.template
 override certreq_template := $(project_root)/ssl-secrets/certificates/certificate-request.conf.template
 
 $(env_file):
@@ -303,4 +308,4 @@ $(env_stamp): $(env_file)
 	@touch "$@"
 
 $(project_file): $(compose_template) $(env_stamp)
-	$(MAKE) New-Location
+	$(MAKE) New-WebhookLocation
