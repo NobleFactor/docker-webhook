@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Install-Dependencies - Install required dependencies for docker-webhook
+
+source "$(dirname "$0")/Declare-BashScript" "$0" "" "" "$@"
+
+sudo apt update 
+sudo apt install --yes curl gawk grepcidr ipcalc jq
+
+sudo "${script_root}/Install-Docker"

@@ -1,0 +1,6 @@
+#compdef New-DockerNetwork
+_arguments \
+  '--help[Print this text and exit]' \
+  '--device[Parent network device name]' \
+  '--driver[Driver type]' \
+  '--ip-range[Allocate container IPv4 addresses from a CIDR block]'

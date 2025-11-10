@@ -1,0 +1,306 @@
+# SPDX-FileCopyrightText: 2023-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+# docker-webhook Makefile
+
+SHELL := bash
+.SHELLFLAGS := -o errexit -o nounset -o pipefail -c
+.ONESHELL:
+
+## PARAMETERS
+
+### LOCATION
+
+ifeq ($(strip $(LOCATION)),)
+    LOCATION := $(shell curl --fail --silent "http://ip-api.com/json?fields=countryCode,region" | jq --raw-output '"\(.countryCode)-\(.region)"' | tr '[:upper:]' '[:lower:]')
+else
+    LOCATION := $(shell echo $(LOCATION) | tr '[:upper:]' '[:lower:]')
+endif
+
+### CONTAINER_DOMAIN_NAME
+
+CONTAINER_DOMAIN_NAME ?= localdomain
+
+### CONTAINER_ENVIRONMENT
+
+CONTAINER_ENVIRONMENT ?= dev
+
+ifeq ($(CONTAINER_ENVIRONMENT),prod)
+	undefine hostname_suffix
+else
+	override hostname_suffix := -$(CONTAINER_ENVIRONMENT)
+endif
+
+### CONTAINER_HOSTNAME
+
+override CONTAINER_HOSTNAME ?= webhook-$(LOCATION)$(hostname_suffix)
+
+### WEBHOOK_VERSION
+
+WEBHOOK_VERSION ?= 2.8.2
+
+## IP_ADDRESS
+
+### Optional; if absent docker compose will decide based on the IP_RANGE
+
+## IP_RANGE
+
+export IP_RANGE
+
+## VARIABLES
+
+### PROJECT
+
+TAG ?= 1.0.0-preview.1
+
+project_name := webhook
+project_root := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
+project_file := $(project_root)/$(project_name)-$(LOCATION).yaml
+project_networks_file := $(project_root)/$(project_name).networks.yaml
+
+# Compose file may not exist initially; targets below will ensure generation when needed.
+
+override IMAGE := noblefactor/$(project_name):$(TAG)
+
+### WEBHOOK_PORT
+
+WEBHOOK_PORT ?= 9000
+
+### SECRETS
+
+override ssl_certificates_root := $(project_root)/secrets/$(LOCATION)/ssl-certificates
+
+override ssl_certificates := \
+	$(ssl_certificates_root)/private-key.pem\
+	$(ssl_certificates_root)/public-key.pem
+
+override ssh_keys_root := $(project_root)/secrets/$(LOCATION)/ssh
+
+override ssh_keys := \
+	$(ssh_keys_root)/id_rsa\
+	$(ssh_keys_root)/id_rsa.pub
+
+### CONTAINER VOLUMES
+
+override volume_root := $(project_root)/volumes/$(LOCATION)
+
+override container_certificates := \
+	$(volume_root)/certificates/private-key.pem\
+	$(volume_root)/certificates/ssl-certificate.pem
+
+override container_keys := \
+	$(volume_root/ssh/id_rsa)\
+	$(volume_root/ssh/id_rsa.pub)
+
+### NETWORK
+
+OS := $(shell uname)
+
+ifeq ($(OS),Linux)
+    override network_device := $(shell ip route | awk '/^default via / { print $$5; exit }')
+    override network_driver := macvlan
+else ifeq ($(OS),Darwin)
+    override network_device := $(shell scutil --dns | gawk '/if_index/ { print gensub(/[()]/, "", "g", $$4); exit }')
+	override network_driver := bridge
+else
+    $(error Unsupported operating system: $OS)
+endif
+
+override network_name := $(shell \
+    project="$(project_name)"; \
+    device="$(network_device)"; \
+    len=$$((15 - $${#device})); \
+    echo "$${project:0:$${len}}_$${device}")
+
+## TARGETS
+
+docker_compose := sudo \
+	WEBHOOK_PORT="$(WEBHOOK_PORT)" \
+    LOCATION="$(LOCATION)" \
+    CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
+    CONTAINER_DOMAIN_NAME="$(CONTAINER_DOMAIN_NAME)" \
+    NETWORK_NAME="$(network_name)" \
+    docker compose -f "$(project_file)" -f "$(project_networks_file)"
+
+HELP_COLWIDTH ?= 28
+
+.PHONY: help help-short help-full clean Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates Update-WebhookRcloneConf
+
+##@ Help
+help: help-short ## Show brief help (alias: help-short)
+
+help-short: ## Show brief help for annotated targets
+	@awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
+
+help-full: ## Show detailed usage (man page)
+	@man -P 'less -R' -l "$(project_root)/docs/webhook-image.1"
+
+##@ Utilities
+clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROUS)
+	$(MAKE) Stop-Webhook
+	sudo docker network rm --force $(network_name) || true
+	sudo docker system prune --force --all
+	sudo docker volume prune --force --all
+
+##@ Location
+New-WebhookLocation: ## Ensure location files exist; generate if missing or older than webhook-$(LOCATION).env
+	@env_file="$(project_root)/webhook-$(LOCATION).env"
+	if [[ ! -f "$$env_file" ]]; then
+		echo "Missing environment file: $$env_file"
+		exit 1
+	fi
+	regen=0
+	if [[ ! -f "$(project_file)" || "$(project_file)" -ot "$$env_file" ]]; then
+		regen=1
+	fi
+	if [[ ! -f "$(project_root)/secrets/certificate-request.conf" || "$(project_root)/secrets/certificate-request.conf" -ot "$$env_file" ]]; then
+		regen=1
+	fi
+	if (( regen )); then
+		$(project_root)/bin/New-WebhookLocation --env-file="$$env_file"
+	fi
+
+##@ Lifecycle
+Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
+	$(docker_compose) ps --all --format json --no-trunc | jq .
+
+##@ Backups
+Mount-WebhookBackups: ## Mount OneDrive backups via rclone
+
+	@declare -r mount_subcommand=$$([[ $(OS) == Darwin ]] && echo nfsmount || echo mount) 
+	@declare -r remote_path="onedrive:Webhook/backups"
+	@declare -r mount_dir="WebhookBackups"
+	@declare -r rclone_log_file="$${mount_dir}/../WebhookBackups.rclone.log"
+
+	@mkdir --parents "$${mount_dir}"
+
+	@pids="$$(ps -eo pid=,args= | awk -v mount="$$mount_subcommand" -v remote="$$remote_path" -v mount_dir="$$mount_dir" 'index($$0, "rclone " mount " " remote " " mount_dir) { print $$1 }')"
+	@if [[ -n "$$pids" ]]; then
+		kill $$pids || true
+	fi
+
+	rclone "$${mount_subcommand}" "$${remote_path}" "$${mount_dir}" \
+		--vfs-cache-mode=full \
+		--daemon \
+		--log-level=DEBUG \
+		--log-file="$${rclone_log_file}" || true
+
+	@if [[ -f "$${rclone_log_file}" ]]; then
+		awk 'END{print}' "$${rclone_log_file}" || true
+	fi
+
+##@ Build and Create
+New-Webhook: New-WebhookImage New-WebhookContainer ## Build image and create container
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
+
+##@ Container
+New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create container from existing image and prepare volumes
+
+	@if [[ -z "$(IP_RANGE)" ]]; then
+		echo "An IP_RANGE is required. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
+		exit 1		
+	fi
+
+	@if [[ -n "$(IP_ADDRESS)" ]]; then
+		if ! grepcidr "$(IP_RANGE)" <(echo "$(IP_ADDRESS)") >/dev/null 2>&1; then
+			echo "Failure: $(IP_ADDRESS) is NOT in $(IP_RANGE)"
+			exit 1
+		fi
+	fi
+
+	$(docker_compose) stop && New-DockerNetwork --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
+	$(docker_compose) create --force-recreate --pull never --remove-orphans
+	@sudo docker inspect "$(CONTAINER_HOSTNAME)"
+
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
+
+##@ Image
+New-WebhookImage: ## Build the Webhook image only
+	@sudo docker buildx build \
+		--build-arg webhook_version=$(WEBHOOK_VERSION) \
+		--build-arg webhook_port=$(WEBHOOK_PORT) \
+		--build-arg puid=$(shell id -u) \
+		--load --progress=plain \
+		--tag "$(IMAGE)" .
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
+
+##@ Lifecycle
+Restart-Webhook: ## Restart container
+	$(docker_compose) restart
+	$(MAKE) Get-WebhookStatus
+ 
+##@ Lifecycle
+Start-Webhook: ## Start container
+	$(docker_compose) start
+	$(MAKE) Get-WebhookStatus
+
+##@ Lifecycle
+Start-WebhookShell: ## Open interactive shell in the container
+	sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
+
+##@ Lifecycle
+Stop-Webhook: ## Stop container
+	$(docker_compose) stop
+	$(MAKE) Get-WebhookStatus
+
+##@ SSL Certificates
+New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
+	@cd "$(ssl_certificates_root)"
+	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out public-key.pem
+	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
+
+##@ SSH Keys
+New-WebhookKeys: ## Generate SSH keys for LOCATION
+	@mkdir --parent $(ssh_keys_root)
+	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
+
+##@ SSL Certificates
+Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
+	@mkdir --parent "$(volume_root)/ssl-certificates"
+	@cp --verbose $(certificates) "$(volume_root)/.config/certificates"
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+	@echo "    Ensure that Webhook in $(LOCATION) loads new certificates: make Restart-Webhook"
+
+##@ SSH Keys
+Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
+	mkdir --parent "$(volume_root)/ssh"
+	cp --verbose $(ssh_keys) "$(volume_root)/ssh"
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+
+## BUILD RULES
+
+$(ssl_certificates_root)/certificate-request.conf: $(project_root)/webhook-$(LOCATION).env
+	$(project_root)/bin/New-DockerLocation --env-file $(project_root)/webhook-$(LOCATION).env
+
+$(ssl_certificates): $(ssl_certificates_root)/certificate-request.conf
+	@echo $(ssl_certificates)
+	$(MAKE) New-WebhookCertificates
+
+$(container_certificates): $(ssl_certificates)
+	$(MAKE) Update-WebhookCertificates
+
+$(ssh_keys):
+	$(MAKE) New-WebhookKeys
+
+$(container_keys): $(ssh_keys)
+	$(MAKE) Update-WebhookKeys
+
+## Location artifact rules: if missing or stale vs env/templates, (re)generate via New-HomebridgeLocation
+
+override env_file := $(project_root)/webhook-$(LOCATION).env
+override env_stamp := $(project_root)/.env-$(LOCATION).stamp
+override compose_template := $(project_root)/webhook.yaml.template
+override certreq_template := $(project_root)/ssl-secrets/certificates/certificate-request.conf.template
+
+$(env_file):
+	@echo "Missing environment file: $@"; \
+	 echo "Create it or symlink it into the project root (e.g., from test/baseline)."; \
+	 echo "Expected path: $(project_root)/webhook-$(LOCATION).env"; \
+
+$(env_stamp): $(env_file)
+	@touch "$@"
+
+$(project_file): $(compose_template) $(env_stamp)
+	$(MAKE) New-Location

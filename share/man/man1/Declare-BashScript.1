@@ -1,0 +1,28 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+.TH Declare-BashScript 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Declare-BashScript \- Bash script argument and option parsing helper
+.SH SYNOPSIS
+source Declare-BashScript <script_path> <long-options> <short-options> [arguments]
+.SH DESCRIPTION
+Provides argument parsing, usage, error, note, and success functions for bash scripts. Intended to be sourced at the top of other scripts. Supports long and short options, usage display, and error handling for robust script development.
+.SH ARGUMENTS
+.TP
+.B <script_path>
+Path to the script being executed (usually $0).
+.TP
+.B <long-options>
+Comma-separated list of long options (e.g., "help,verbose,path:").
+.TP
+.B <short-options>
+String of short options (e.g., "hvp").
+.TP
+.B [arguments]
+Arguments to pass to the script.
+.SH USAGE
+source Declare-BashScript $0 "help,verbose,path:," "hvp" "$@"
+.SH AUTHOR
+NobleFactor

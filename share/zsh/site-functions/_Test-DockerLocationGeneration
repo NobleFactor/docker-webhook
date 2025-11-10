@@ -1,0 +1,4 @@
+#compdef Test-DockerLocationGeneration
+_arguments \
+  '--test-location[Specify the test location]' \
+  '--help[Show usage information and exit]'

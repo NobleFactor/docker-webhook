@@ -1,32 +1,68 @@
-[Webhook](https://github.com/adnanh/webhook/) Dockerized
-=================
 
-## Running webhook in Docker
-The simplest usage of [almir/webhook](https://hub.docker.com/r/almir/webhook/) image is for one to host the hooks JSON file on their machine and mount the directory in which those are kept as a volume to the Docker container:
+# Dockerized Webhook (Fork)
+
+**This repository is a fork of [adnanh/webhook](https://github.com/adnanh/webhook/) and [almir/webhook Docker image](https://hub.docker.com/r/almir/webhook/).**
+
+## About This Fork
+
+This fork was created to customize, extend, or maintain the original webhook Docker image for NobleFactor's needs. If you are looking for the original project, see [adnanh/webhook](https://github.com/adnanh/webhook/) and [almir/webhook](https://hub.docker.com/r/almir/webhook/).
+
+**Changes from upstream:**
+- [List any changes, fixes, or customizations here. If none, you can state: "No changes yet, this is a direct fork for future development."]
+
+---
+
+## Getting Started
+
+### Running webhook in Docker
+
+You can run the webhook server using Docker. The simplest usage is to host your hooks JSON file on your machine and mount the directory as a volume:
+
 ```shell
-docker run -d -p 9000:9000 -v /dir/to/hooks/on/host:/etc/webhook --name=webhook \
-  almir/webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
+docker run -d -p 9000:9000 -v /path/to/hooks:/etc/webhook --name=webhook \
+  noblefactor/docker-webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
 ```
 
-Another method of using this Docker image is to create a simple `Dockerfile`:
+Replace `/path/to/hooks` with the path to your hooks file.
+
+### Building Your Own Image
+
+You can build your own Docker image using this fork:
+
 ```docker
-FROM almir/webhook
+FROM noblefactor/docker-webhook
 COPY hooks.json.example /etc/webhook/hooks.json
 ```
 
-This `Dockerfile` and `hooks.json.example` files should be placed inside the same directory. After that run `docker build -t my-webhook-image .` and then start your container:
+Place your `Dockerfile` and `hooks.json.example` in the same directory, then build and run:
+
 ```shell
+docker build -t my-webhook-image .
 docker run -d -p 9000:9000 --name=webhook my-webhook-image -verbose -hooks=/etc/webhook/hooks.json -hotreload
 ```
 
-Additionally, one can specify the parameters to be passed to [webhook](https://github.com/adnanh/webhook/) in `Dockerfile` simply by adding one more line to the previous example:
+### Customizing Entrypoint
+
+You can specify parameters in your `Dockerfile` using the `CMD` instruction:
+
 ```docker
-FROM almir/webhook
+FROM noblefactor/docker-webhook
 COPY hooks.json.example /etc/webhook/hooks.json
 CMD ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
 ```
 
-Now, after building your Docker image with `docker build -t my-webhook-image .`, you can start your container by running just:
+After building, you can run the container without extra arguments:
+
 ```shell
 docker run -d -p 9000:9000 --name=webhook my-webhook-image
 ```
+
+---
+
+## Contributing
+
+Feel free to open issues or pull requests for improvements or fixes. For major changes, please discuss them first.
+
+## License
+
+This project inherits its license from the upstream repositories. See [LICENSE](LICENSE) for details.

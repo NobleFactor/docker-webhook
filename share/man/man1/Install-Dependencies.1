@@ -1,0 +1,25 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+.TH Install-Dependencies 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Install-Dependencies \- Install required dependencies for docker-webhook
+.SH SYNOPSIS
+Install-Dependencies [OPTIONS]
+.SH DESCRIPTION
+Installs required system packages and calls Install-Docker and Install-Rclone scripts. Ensures all dependencies for docker-webhook are present. Supports both Debian and Ubuntu systems.
+.SH ARGUMENTS
+.TP
+.B -h, --help
+Show usage information and exit.
+.TP
+.B --dry-run
+Show actions without making changes.
+.TP
+.B --force
+Force reinstallation of dependencies.
+.SH USAGE
+sudo ./bin/Install-Dependencies [OPTIONS]
+.SH AUTHOR
+NobleFactor
