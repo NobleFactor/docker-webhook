@@ -72,17 +72,25 @@ override ROLE := webhook
 
 ### CONFIGURATION
 
+#### ssl certificates
+
 override ssl_certificates_root := $(project_root)/$(ROLE).config/$(LOCATION)/ssl-certificates
 
 override ssl_certificates := \
 	$(ssl_certificates_root)/private-key.pem\
 	$(ssl_certificates_root)/certificate.pem
 
+#### ssh keys
+
 override ssh_keys_root := $(project_root)/$(ROLE).config/$(LOCATION)/ssh
 
 override ssh_keys := \
 	$(ssh_keys_root)/id_rsa\
 	$(ssh_keys_root)/id_rsa.pub
+
+#### webhook hooks
+
+override webhook_hooks := $(project_root)/$(ROLE).config/$(LOCATION)/hooks.json
 
 ### CONTAINER VOLUMES
 
@@ -95,6 +103,8 @@ override container_certificates := \
 override container_keys := \
 	$(volume_root)/ssh/id_rsa\
 	$(volume_root)/ssh/id_rsa.pub
+
+override container_hooks := $(volume_root)/hooks.json
 
 ### NETWORK
 
@@ -234,12 +244,12 @@ New-WebhookImage: ## Build the Webhook image only
 	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
 
 ##@ Lifecycle
-Restart-Webhook: ## Restart container
+Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ß## Restart container
 	$(docker_compose) restart
 	$(MAKE) Get-WebhookStatus
  
 ##@ Lifecycle
-Start-Webhook: ## Start container
+Start-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ## Start container
 	$(docker_compose) start
 	$(MAKE) Get-WebhookStatus
 
@@ -275,9 +285,15 @@ Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into co
 Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
 	mkdir --parent "$(volume_root)/ssh"
 	cp --verbose $(ssh_keys) "$(volume_root)/ssh"
-	@echo -e "\n\033[1mWhat's next:\033[0m"
+
+##@ Webhook Hooks
+Update-WebhookHooks: $(webhook_hooks) ## Copy hooks.json file in container volume for LOCATION
+	mkdir --parent "$(volume_root)"
+	cp --verbose "$(webhook_hooks)" "$(volume_root)"
 
 ## BUILD RULES
+
+# ssl certificates
 
 $(ssl_certificates_root)/certificate-request.conf: $(project_root)/webhook-$(LOCATION).env
 	$(project_root)/bin/New-DockerLocation --env-file $(project_root)/webhook-$(LOCATION).env
@@ -289,11 +305,21 @@ $(ssl_certificates): $(ssl_certificates_root)/certificate-request.conf
 $(container_certificates): $(ssl_certificates)
 	$(MAKE) Update-WebhookCertificates
 
+### ssh keys
+
 $(ssh_keys):
 	$(MAKE) New-WebhookKeys
 
 $(container_keys): $(ssh_keys)
 	$(MAKE) Update-WebhookKeys
+
+### webhook hooks
+
+$(webhook_hooks):
+	echo '[]' > $(webhook_hooks)
+
+$(container_hooks):
+	$(MAKE) Update-WebhookHooks
 
 ## Location artifact rules: if missing or stale vs env/templates, (re)generate via New-DockerLocation
 
@@ -303,9 +329,9 @@ override compose_template := $(project_root)/services.yaml.template
 override certreq_template := $(project_root)/certificate-request.conf.template
 
 $(env_file):
-	@echo "Missing environment file: $@"; \
-	 echo "Create it or symlink it into the project root (e.g., from test/baseline)."; \
-	 echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"; \
+	@echo "Missing environment file: $@"
+	@echo "Create it or symlink it into the project root (e.g., from test/baseline)."
+	@echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"
 
 $(env_stamp): $(env_file)
 	@touch "$@"

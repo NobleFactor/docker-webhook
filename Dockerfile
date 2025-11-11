@@ -78,4 +78,4 @@ ENV         WEBHOOK_PORT=${webhook_port}
 VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 
-ENTRYPOINT ["/init"]
+ENTRYPOINT  ["/init"]
