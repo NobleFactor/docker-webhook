@@ -9,8 +9,8 @@ WORKDIR /go/src/github.com/noblefactor/webhook
 ARG webhook_version=2.8.2
 
 RUN <<EOF
-apt update --yes
-apt install --no-install-recommends build-deps curl libc-dev gcc libgcc
+apt-get update --yes
+apt-get install --no-install-recommends curl
 curl -L --silent -o webhook.tar.gz https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz && \
 tar -xzf webhook.tar.gz --strip 1
 go mod download
@@ -19,7 +19,7 @@ EOF
 
 ## Runtime
 
-FROM debian:trixie
+FROM debian:trixie-slim AS runtime
 
 ARG s6_overlay_version=3.2.1.0
 ARG webhook_port=9000
@@ -38,22 +38,27 @@ ARG webhook_port=9000
 ##### Install prerequisites
 RUN <<EOF
 apt-get update --yes
-apt-get install --yes --no-install-recommends ca-certificates tzdata
+apt-get install --yes --no-install-recommends ca-certificates openssh-client tzdata xz-utils
 rm -rf /var/lib/apt/lists/*
 EOF
 
 ##### Install s6 overlay
+
 ADD https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/s6-overlay-aarch64.tar.xz /tmp/
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/s6-overlay-noarch.tar.xz /tmp
 
 RUN <<EOF
-tar xzf /tmp/s6-overlay-aarch64.tar.xz -C /
+tar tf /tmp/s6-overlay-noarch.tar.xz
+tar xf /tmp/s6-overlay-noarch.tar.xz -C /
+tar xf /tmp/s6-overlay-aarch64.tar.xz -C /
 mkdir -p /etc/services.d/webhook/log
-rm /tmp/s6-overlay-aarch64.tar.xz
+rm /tmp/s6-overlay-{noarch,aarch64}.tar.xz
+apt-get remove --yes xz-utils
 EOF
 
 ##### Install webhook
 COPY --from=build /usr/local/bin/webhook /usr/local/bin/webhook
-RUN useradd --system --uid 1000 --user-group webhook
+RUN useradd --system --uid 999 --user-group webhook
 
 ##### user
 RUN echo webhook > /etc/services.d/webhook/user
