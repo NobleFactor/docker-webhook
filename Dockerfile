@@ -1,7 +1,5 @@
 # Dockerfile for https://github.com/NobleFactor/docker-webhook
 
-ARG webhook_port=9000
-
 ## Build
 
 FROM golang:trixie AS build
@@ -28,8 +26,6 @@ ARG webhook_port=9000
 
 ### Setup S6 Overlay and webook
 
-ENV S6_VERSION=${s6_overlay_version}
-
 # S6 service tree structure:
 #
 # /etc/services.d/
@@ -47,7 +43,7 @@ rm -rf /var/lib/apt/lists/*
 EOF
 
 ##### Install s6 overlay
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_VERSION}/s6-overlay-aarch64.tar.xz /tmp/
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/s6-overlay-aarch64.tar.xz /tmp/
 
 RUN <<EOF
 tar xzf /tmp/s6-overlay-aarch64.tar.xz -C /
@@ -65,8 +61,7 @@ RUN echo webhook > /etc/services.d/webhook/user
 ##### run
 RUN cat > /etc/services.d/webhook/run <<EOF
 #!/usr/bin/execlineb -P
-webhook -verbose -hooks=/usr/local/etc/webhook/hooks.json -hotreload -port=
-${WEBHOOK_PORT} 2>&1
+webhook -verbose -hooks=/usr/local/etc/webhook/hooks.json -hotreload -port=\${WEBHOOK_PORT} -secure -cert=/usr/local/etc/webhook/ssl-certificates/certificate.pem -key=/usr/local/etc/webhook/ssl-certificates/private-key.pem
 EOF
 RUN chmod +x /etc/services.d/webhook/run
 
@@ -79,8 +74,8 @@ RUN chmod +x /etc/services.d/webhook/log/run
 
 ### Setup container environment
 
-WORKDIR     /usr/local/etc/webhook
+ENV         WEBHOOK_PORT=${webhook_port}
 VOLUME      [ "/usr/local/etc/webhook" ]
-EXPOSE      ${WEBHOOK_PORT}
+WORKDIR     /usr/local/etc/webhook
 
 ENTRYPOINT ["/init"]

@@ -1,7 +1,7 @@
 services:
   webhook:
     volumes:
-      - ./volumes/${LOCATION}:/${ROLE}
+      - ./volumes/${LOCATION}:/usr/local/etc/${ROLE}
     extends:
       file: compose.yaml
       service: ${ROLE}

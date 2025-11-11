@@ -68,16 +68,17 @@ override project_networks_file := $(project_root)/$(project_name).networks.yaml
 # Compose file may not exist initially; targets below will ensure generation when needed.
 
 override IMAGE := noblefactor/$(project_name):$(TAG)
+override ROLE := webhook
 
-### SECRETS
+### CONFIGURATION
 
-override ssl_certificates_root := $(project_root)/secrets/$(LOCATION)/ssl-certificates
+override ssl_certificates_root := $(project_root)/$(ROLE).config/$(LOCATION)/ssl-certificates
 
 override ssl_certificates := \
 	$(ssl_certificates_root)/private-key.pem\
-	$(ssl_certificates_root)/public-key.pem
+	$(ssl_certificates_root)/certificate.pem
 
-override ssh_keys_root := $(project_root)/secrets/$(LOCATION)/ssh
+override ssh_keys_root := $(project_root)/$(ROLE).config/$(LOCATION)/ssh
 
 override ssh_keys := \
 	$(ssh_keys_root)/id_rsa\
@@ -89,11 +90,11 @@ override volume_root := $(project_root)/volumes/$(LOCATION)
 
 override container_certificates := \
 	$(volume_root)/certificates/private-key.pem\
-	$(volume_root)/certificates/ssl-certificate.pem
+	$(volume_root)/certificates/certificate.pem
 
 override container_keys := \
-	$(volume_root/ssh/id_rsa)\
-	$(volume_root/ssh/id_rsa.pub)
+	$(volume_root)/ssh/id_rsa\
+	$(volume_root)/ssh/id_rsa.pub
 
 ### NETWORK
 
@@ -118,7 +119,7 @@ override network_name := $(shell \
 ## TARGETS
 
 docker_compose := sudo \
-    WEBHOOK_VERSION="${WEBHOOK_VERSION}" \
+    WEBHOOK_IMAGE="${IMAGE}" \
     WEBHOOK_PORT="$(WEBHOOK_PORT)" \
     LOCATION="$(LOCATION)" \
     CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
@@ -148,16 +149,17 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 
 ##@ Location
 New-WebhookLocation: ## Ensure location files exist; generate if missing or older than webhook-$(LOCATION).env
-	@env_file="$(project_root)/webhook-$(LOCATION).env"
-	if [[ ! -f "$$env_file" ]]; then
+	@env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
+	@if [[ ! -f "$$env_file" ]]; then
 		echo "Missing environment file: $$env_file"
 		exit 1
 	fi
 	regen=0
-	if [[ ! -f "$(project_file)" || "$(project_file)" -ot "$$env_file" ]]; then
+	@if [[ ! -f "$(project_file)" || "$(project_file)" -ot "$$env_file" ]]; then
 		regen=1
 	fi
-	if [[ ! -f "$(project_root)/secrets/certificate-request.conf" || "$(project_root)/secrets/certificate-request.conf" -ot "$$env_file" ]]; then
+	@certificate_request_file="$(project_root)/$(ROLE).config/$(LOCATION)/ssl-certificates/certificate-request.conf"
+	@if [[ ! -f "$${certificate_request_file}" || "$${certificate_request_file}" -ot "$${env_file}" ]]; then
 		regen=1
 	fi
 	if (( regen )); then
@@ -201,9 +203,9 @@ New-Webhook: New-WebhookImage New-WebhookContainer ## Build image and create con
 ##@ Container
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create container from existing image and prepare volumes
 
-	@if [[ -z "$(IP_RANGE)" ]]; then
-		echo "An IP_RANGE is required. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
-		exit 1		
+	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
+		echo "An IP_RANGE is required for macvlan. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
+		exit 1
 	fi
 
 	@if [[ -n "$(IP_ADDRESS)" ]]; then
@@ -213,7 +215,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create 
 		fi
 	fi
 
-	$(docker_compose) stop && New-DockerNetwork --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
+	$(docker_compose) stop && "$(project_root)/bin/New-DockerNetwork" --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
 	$(docker_compose) create --force-recreate --pull never --remove-orphans
 	@sudo docker inspect "$(CONTAINER_HOSTNAME)"
 
@@ -243,7 +245,7 @@ Start-Webhook: ## Start container
 
 ##@ Lifecycle
 Start-WebhookShell: ## Open interactive shell in the container
-	sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
+	@sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
 
 ##@ Lifecycle
 Stop-Webhook: ## Stop container
@@ -253,7 +255,7 @@ Stop-Webhook: ## Stop container
 ##@ SSL Certificates
 New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
 	@cd "$(ssl_certificates_root)"
-	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out public-key.pem
+	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
 	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
 
 ##@ SSH Keys
@@ -263,8 +265,9 @@ New-WebhookKeys: ## Generate SSH keys for LOCATION
 
 ##@ SSL Certificates
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
-	@mkdir --parent "$(volume_root)/ssl-certificates"
-	@cp --verbose $(certificates) "$(volume_root)/.config/certificates"
+	@mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
+	@cp --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
+	@cp --verbose $(ssh_keys) "$(volume_root)/ssh"
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Ensure that Webhook in $(LOCATION) loads new certificates: make Restart-Webhook"
 
@@ -297,15 +300,15 @@ $(container_keys): $(ssh_keys)
 override env_file := $(project_root)/webhook-$(LOCATION).env
 override env_stamp := $(project_root)/.env-$(LOCATION).stamp
 override compose_template := $(project_root)/services.yaml.template
-override certreq_template := $(project_root)/ssl-secrets/certificates/certificate-request.conf.template
+override certreq_template := $(project_root)/certificate-request.conf.template
 
 $(env_file):
 	@echo "Missing environment file: $@"; \
 	 echo "Create it or symlink it into the project root (e.g., from test/baseline)."; \
-	 echo "Expected path: $(project_root)/webhook-$(LOCATION).env"; \
+	 echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"; \
 
 $(env_stamp): $(env_file)
 	@touch "$@"
 
-$(project_file): $(compose_template) $(env_stamp)
+$(project_file): $(compose_template) $(certreq_template) $(env_stamp)
 	$(MAKE) New-WebhookLocation

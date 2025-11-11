@@ -126,18 +126,8 @@ if [[ -z "${EMAIL_ADDRESS:-}" ]]; then error 1 "Missing value for email-address"
 # Main
 ###########
 
-declare -r ssl_certificates_dir="secrets/${LOCATION}/ssl-certificates"
-declare -r compose_file="${ROLE}-${LOCATION}.services.yaml"
-mkdir -p "$ssl_certificates_dir"
-
-envsubst < secrets/certificate-request.conf.template > "$ssl_certificates_dir/certificate-request.conf"
-envsubst < "services.yaml.template" > "$compose_file"
-
-note "Generated:"
-note "  $ssl_certificates_dir/certificate-request.conf"
-note "  $compose_file"
-
 # Save exported environment variables to ${ROLE}-$(LOCATION).env
+
 env_file="${ROLE}-${LOCATION}.env"
 
 cat > "$env_file" <<EOF
@@ -151,5 +141,18 @@ ORGANIZATIONAL_UNIT="${ORGANIZATIONAL_UNIT}"
 DOMAIN_NAME="${DOMAIN_NAME}"
 EMAIL_ADDRESS="${EMAIL_ADDRESS}"
 EOF
+
+# Create docker compose and certificate request files
+
+declare -r ssl_certificates_dir="${ROLE}.config/${LOCATION}/ssl-certificates"
+declare -r compose_file="${ROLE}-${LOCATION}.yaml"
+mkdir -p "$ssl_certificates_dir"
+
+envsubst < certificate-request.conf.template > "$ssl_certificates_dir/certificate-request.conf"
+envsubst < services.yaml.template > "$compose_file"
+
+note "Generated:"
+note "  $ssl_certificates_dir/certificate-request.conf"
+note "  $compose_file"
 
 note "Saved environment variables to $env_file"

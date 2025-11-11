@@ -225,7 +225,9 @@ declare -r link_name="$(get_linkname "${network_name}")"
 note "Created docker ${driver_name} network ${network_name} on parent device ${device_name}$([[ -z ${link_name} ]] || echo " with ip link name ${link_name}")"
 sudo docker network inspect "${network_name}" 1>&2
 
-[[ -z ${link_name:-} ]] || ip -s link show "${link_name}"
+if [[ "$OSTYPE" == linux-gnu* && -n ${link_name:-} ]]; then
+    ip -s link show "${link_name}" # Links show up on Linux, but not on macOS
+fi
 
 if [[ "$OSTYPE" == linux-gnu* && -n ${ip_range:-} ]]; then
 
