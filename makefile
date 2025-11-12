@@ -164,7 +164,7 @@ docker_compose := sudo \
 
 HELP_COLWIDTH ?= 28
 
-.PHONY: help help-short help-full clean test Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates Update-WebhookRcloneConf
+.PHONY: help help-short help-full clean test Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
 
 ##@ Help
 help: help-short ## Show brief help (alias: help-short)
@@ -209,7 +209,7 @@ New-WebhookLocation: ## Ensure location files exist; generate if missing or olde
 		$(project_root)/bin/New-DockerLocation --env-file="$$env_file"
 	fi
 
-##@ Utilities
+##@ Status
 Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 	$(docker_compose) ps --all --format json --no-trunc | jq .
 
@@ -291,7 +291,7 @@ New-WebhookKeys: ## Generate SSH keys for LOCATION
 	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
 
 ##@ Lifecycle
-Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ß## Restart container
+Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ## Restart container
 	$(docker_compose) restart
 	$(MAKE) Get-WebhookStatus
  
