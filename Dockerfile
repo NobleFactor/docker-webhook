@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
+# hadolint ignore=DL3008,SC1008,SC2016,SC2001,DL4006
+
 # Dockerfile for https://github.com/NobleFactor/docker-webhook
 
 ## Build

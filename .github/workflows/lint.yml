@@ -1,0 +1,31 @@
+name: lint
+
+on:
+  push:
+    branches: [ main, master, '**' ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  hadolint-and-spell:
+    name: hadolint + spellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run hadolint (container)
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir hadolint/hadolint:latest hadolint Dockerfile
+
+      - name: Install codespell
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --user codespell
+          echo "::add-path::$HOME/.local/bin"
+
+      - name: Run codespell
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          # skip known binary/secret folders
+          codespell --skip="volumes/**,webhook.config/**" .
