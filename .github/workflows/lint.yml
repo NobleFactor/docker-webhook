@@ -14,11 +14,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
       - name: Install codespell
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user codespell
-          echo "::add-path::$HOME/.local/bin"
+          python -m pip install --upgrade pip
+          python -m pip install --user codespell
+          # add runner-local user bin to PATH via the supported GITHUB_PATH file
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run codespell
         run: |
