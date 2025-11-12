@@ -4,7 +4,7 @@
 ########################################################################################################################
 .TH New-DockerNetwork 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-New-DockerNetwork \- create a docker network using Noble Factor conventions
+New-DockerNetwork \- create a Docker network using Noble Factor conventions
 .SH SYNOPSIS
 New-DockerNetwork [OPTIONS] SERVICE-NAME
 .SH DESCRIPTION
@@ -75,10 +75,13 @@ Create a network with bridge driver:
 .SH EXIT STATUS
 .TP
 0
+.I \fBdocker\fR, \fBsudo\fR, \fBgetopt\fR, \fBuname\fR
 Success
 .TP
+.I \fBscutil\fR, \fBipcalc\fR, \fBifconfig\fR, \fBtraceroute\fR
 1
 Error (invalid arguments, unsupported OS, network creation failure, etc.)
+.I \fBnmcli\fR, \fBipcalc\fR
 .SH DEPENDENCIES
 .TP
 .B Required commands:
