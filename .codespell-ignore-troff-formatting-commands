@@ -1,0 +1,3 @@
+# codespell ignore words used for troff/roff formatting escapes
+# Add short tokens that appear due to troff escape sequences (e.g. \(bu -> bu)
+bu

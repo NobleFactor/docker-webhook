@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-# hadolint ignore=DL3008,SC1008,SC2016,SC2001,DL4006
-
 # Dockerfile for https://github.com/NobleFactor/docker-webhook
 
 ## Build
@@ -58,7 +56,7 @@ EOF
 ##### Install s6 overlay
 
 RUN <<EOF
-declare -r arch_archive="s6-overlay-$(echo "$TARGETARCH" | sed 's/arm64/aarch64/').tar.xz"
+declare -r arch_archive="s6-overlay-${TARGETARCH/arm64/aarch64}.tar.xz"
 declare -r noarch_archive="s6-overlay-noarch.tar.xz"
 
 curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${arch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${arch_archive}"
@@ -83,8 +81,9 @@ EOF
 RUN echo webhook > /etc/services.d/webhook/user
 
 ##### run
-RUN cat > /etc/services.d/webhook/run <<'EOF'
+RUN install --owner=root --group=root --mode=0755 /dev/stdin /etc/services.d/webhook/run <<'EOF'
 #!/bin/sh -e
+# shellcheck shell=sh
 exec webhook -verbose \
 	-hooks=/usr/local/etc/webhook/hooks.json \
 	-port="${WEBHOOK_PORT:-9000}" \
@@ -93,14 +92,12 @@ exec webhook -verbose \
 	-cert=/usr/local/etc/webhook/ssl-certificates/certificate.pem \
 	-key=/usr/local/etc/webhook/ssl-certificates/private-key.pem
 EOF
-RUN chmod +x /etc/services.d/webhook/run
 
 ##### log
-RUN cat > /etc/services.d/webhook/log/run <<EOF
+RUN install --owner=root --group=root --mode=0755 /dev/stdin /etc/services.d/webhook/log/run <<'EOF'
 #!/command/execlineb -P
 s6-log /var/log/webhook
 EOF
-RUN chmod +x /etc/services.d/webhook/log/run
 
 ### Setup container environment
 
@@ -108,7 +105,7 @@ ENV         WEBHOOK_PORT=${webhook_port}
 VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 
-COPY scripts/noblefactor.init /noblefactor.init
+COPY data/noblefactor.init /noblefactor.init
 RUN chmod +x /noblefactor.init
 
 ENTRYPOINT  ["/noblefactor.init", "webhook", "/usr/local/etc/webhook"]

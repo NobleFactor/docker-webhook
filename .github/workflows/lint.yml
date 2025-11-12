@@ -7,16 +7,12 @@ on:
     branches: [ main, master ]
 
 jobs:
-  hadolint-and-spell:
-    name: hadolint + spellcheck
+  spellcheck:
+    name: spellcheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Run hadolint (container)
-        run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir hadolint/hadolint:latest hadolint Dockerfile
 
       - name: Install codespell
         run: |

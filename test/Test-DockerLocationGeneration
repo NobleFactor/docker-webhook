@@ -62,12 +62,12 @@ declare -r baseline_dir="test/baseline"
 
 declare -r baseline_compose_file="${baseline_dir}/homebridge-${test_location}.yaml"
 declare -r baseline_env_file="${baseline_dir}/homebridge-${test_location}.env"
-declare -r baseline_secrets_dir="${baseline_dir}/secrets"
+declare -r baseline_secrets_dir="${baseline_dir}/webhook.config"
 declare -r baseline_certificates_dir="${baseline_secrets_dir}/certificates/${test_location}"
 
 declare -r generated_compose_file="homebridge-${test_location}.yaml"
 declare -r generated_env_file="homebridge-${test_location}.env"
-declare -r generated_secrets_dir="secrets"
+declare -r generated_secrets_dir="webhook.config"
 declare -r generated_certificates_dir="${generated_secrets_dir}/certificates/${test_location}"
 
 # Remove any generated artifacts before starting
