@@ -13,6 +13,8 @@ SHELL := bash
 
 ### LOCATION
 
+LOCATION ?=
+
 ifeq ($(strip $(LOCATION)),)
     LOCATION := $(shell curl --fail --silent "http://ip-api.com/json?fields=countryCode,region" | jq --raw-output '"\(.countryCode)-\(.region)"' | tr '[:upper:]' '[:lower:]')
 else
@@ -162,7 +164,7 @@ docker_compose := sudo \
 
 HELP_COLWIDTH ?= 28
 
-.PHONY: help help-short help-full clean Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates Update-WebhookRcloneConf
+.PHONY: help help-short help-full clean test Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates Update-WebhookRcloneConf
 
 ##@ Help
 help: help-short ## Show brief help (alias: help-short)
@@ -179,6 +181,14 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 	sudo docker network rm --force $(network_name) || true
 	sudo docker system prune --force --all
 	sudo docker volume prune --force --all
+
+##@ Utilities
+test: ## Runs repository test scripts
+	@chmod +x test/Test-DockerWebhookSanity test/Test-DockerLocationGeneration || true
+	@echo "==> Running Test-DockerWebhookSanity"
+	@./test/Test-DockerWebhookSanity --wait 2 || { echo "Test-DockerWebhookSanity failed"; exit 1; }
+	@echo "==> Running Test-DockerLocationGeneration"
+	@./test/Test-DockerLocationGeneration --test-location fake-wa || { echo "Test-DockerLocationGeneration failed"; exit 1; }
 
 ##@ Location
 New-WebhookLocation: ## Ensure location files exist; generate if missing or older than webhook-$(LOCATION).env
@@ -199,7 +209,7 @@ New-WebhookLocation: ## Ensure location files exist; generate if missing or olde
 		$(project_root)/bin/New-DockerLocation --env-file="$$env_file"
 	fi
 
-##@ Lifecycle
+##@ Utilities
 Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 	$(docker_compose) ps --all --format json --no-trunc | jq .
 
@@ -232,6 +242,12 @@ Mount-WebhookBackups: ## Mount OneDrive backups via rclone
 New-Webhook: New-WebhookImage New-WebhookContainer ## Build image and create container
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
+
+##@ SSL Certificates
+New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
+	@cd "$(ssl_certificates_root)"
+	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
+	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
 
 ##@ Container
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create container from existing image and prepare volumes
@@ -269,6 +285,11 @@ New-WebhookImage: ## Build the Webhook image only
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
 
+##@ SSH Keys
+New-WebhookKeys: ## Generate SSH keys for LOCATION
+	@mkdir --parent $(ssh_keys_root)
+	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
+
 ##@ Lifecycle
 Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ß## Restart container
 	$(docker_compose) restart
@@ -287,17 +308,6 @@ Start-WebhookShell: ## Open interactive shell in the container
 Stop-Webhook: ## Stop container
 	$(docker_compose) stop
 	$(MAKE) Get-WebhookStatus
-
-##@ SSL Certificates
-New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
-	@cd "$(ssl_certificates_root)"
-	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
-	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
-
-##@ SSH Keys
-New-WebhookKeys: ## Generate SSH keys for LOCATION
-	@mkdir --parent $(ssh_keys_root)
-	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
 
 ##@ SSL Certificates
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
