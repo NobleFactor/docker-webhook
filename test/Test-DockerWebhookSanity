@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# webhook_sanity - runtime sanity test for Noble Factor webhook images
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,keep,wait:" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Test-DockerWebhookSanity [--wait N] [--keep] [--help] [image:tag]"
+eval set -- "$script_arguments"
+
+[[ $* != -- ]] || usage "$synopsis"
+
+declare -r default_image="noblefactor/webhook:1.0.0-preview.1"
+declare keep=false
+declare wait_seconds=2
+
+while :; do
+  case $1 in
+  -h|--help)
+    usage "$synopsis"; # does not return
+    shift 1
+    ;;
+  --keep)
+    keep=true
+    shift 1
+    ;;
+  --wait)
+    wait_seconds="$2"
+    shift 2
+    ;;
+  --)
+    shift 1
+    break
+    ;;
+  *)
+    error 1 "Unrecognized option: $1"
+    ;;
+  esac
+done
+
+image=${1:-${default_image}}
+container_name=webhook-sanity-$$
+
+###########
+# Main
+###########
+
+# check required tools
+command -v docker >/dev/null 2>&1 || {
+  echo "ERROR: docker is not installed or not in PATH"
+  exit 2
+}
+
+echo "[sanity] Image: $image"
+
+echo "[sanity] Starting container $container_name (detached)..."
+if ! docker run --name "$container_name" -d "$image" >/dev/null 2>&1; then
+  echo "ERROR: failed to start container. Ensure the image '$IMAGE' exists locally or can be pulled."
+  exit 3
+fi
+
+echo "[sanity] Waiting ${wait_seconds}s for service to initialize..."
+sleep $wait_seconds
+
+echo
+echo "[sanity] Container status:"
+docker ps --filter "name=$container_name" --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}' || true
+
+echo
+echo "[sanity] Capturing logs (last 200 lines):"
+logs=$(docker logs --tail 200 "$container_name" 2>&1 || true)
+printf '%s
+' "$logs"
+
+echo
+echo "[sanity] Inspecting runtime files inside the container:"
+# Print /init, /command, and /package/admin contents if present
+docker exec "$container_name" bash -c '
+  printf "== /init ==\n";
+  if [[ -e /init ]]; then ls -l /init; else printf "/init not found\n"; fi;
+  printf "\n== /command ==\n";
+  if [[ -d /command ]]; then ls -l /command | sed -n "1,200p"; else printf "/command not found\n"; fi;
+  printf "\n== /package/admin ==\n";
+  if [[ -d /package/admin ]]; then ls -l /package/admin | sed -n "1,200p"; else printf "/package/admin not found\n"; fi;
+' || true
+
+echo
+echo "[sanity] Cleaning up container..."
+# Force remove in case it is still running
+docker rm -f "$container_name" >/dev/null 2>&1 || true
+
+# Basic success heuristics based on captured logs
+if printf '%s' "$logs" | grep -iq "serving hooks"; then
+  echo "[sanity] SUCCESS: webhook started and serving hooks detected in logs."
+  exit 0
+fi
+
+if printf '%s' "$logs" | grep -iq "version [0-9]\+\.[0-9]"; then
+  echo "[sanity] INFO: webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs above."
+  exit 0
+fi
+
+# If nothing obvious found, return non-zero and summarize
+echo "[sanity] WARNING: could not find clear 'serving hooks' or version markers in logs. Review the captured logs above."
+exit 1

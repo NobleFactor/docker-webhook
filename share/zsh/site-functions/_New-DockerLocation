@@ -1,3 +1,8 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
 #compdef New-DockerLocation
 _arguments \
   '--env-file[Load environment variables from a file]' \

@@ -1,5 +1,8 @@
-# SPDX-FileCopyrightText: 2023-2025 Noble Factor
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
 # SPDX-License-Identifier: MIT
+########################################################################################################################
+
 # docker-webhook Makefile
 
 SHELL := bash
@@ -34,29 +37,49 @@ endif
 
 override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 
+### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
+
+IP_ADDRESS ?=
+
+### IP_RANGE (Required if the docker network driver is macvlan; unused otherwise.)
+
+IP_RANGE ?=
+
 ### S6_OVERLAY_VERSION
 
 S6_OVERLAY_VERSION ?= 3.2.1.0
 
-### WEBHOOK_VERSION
+### WEBHOOK_PGID
 
-WEBHOOK_VERSION ?= 2.8.2
+WEBHOOK_PGID ?= 0
 
 ### WEBHOOK_PORT
 
 WEBHOOK_PORT ?= 9000
 
-## IP_ADDRESS
+### WEBHOOK_PUID
 
-### Optional; if absent docker compose will decide based on the IP_RANGE
+WEBHOOK_PUID ?= $(shell id --user)
 
-## IP_RANGE
+### WEBHOOK_VERSION
 
-export IP_RANGE
+WEBHOOK_VERSION ?= 2.8.2
 
 ## VARIABLES
 
 ### PROJECT
+
+PLATFORM ?= linux/$(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
+ifeq (,$(findstring ,, $(PLATFORM)))
+    # Single-platform -> use --load so the image is loaded into local daemon
+    BUILDX_LOAD := --load
+    BUILDX_PUSH :=
+else
+    # Multi-platform -> must push to remote registry (or remove --load)
+    BUILDX_LOAD :=
+    BUILDX_PUSH := --push
+endif
 
 TAG ?= 1.0.0-preview.1
 
@@ -234,11 +257,14 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create 
 
 ##@ Image
 New-WebhookImage: ## Build the Webhook image only
+	@echo "PLATFORM=$(PLATFORM)"
 	@sudo docker buildx build \
+		--platform $(PLATFORM) \
+		--build-arg s6_overlay_version=$(S6_OVERLAY_VERSION) \
 		--build-arg webhook_version=$(WEBHOOK_VERSION) \
 		--build-arg webhook_port=$(WEBHOOK_PORT) \
-		--build-arg puid=$(shell id -u) \
-		--load --progress=plain \
+		$(BUILDX_LOAD) $(BUILDX_PUSH) \
+		--progress=plain \
 		--tag "$(IMAGE)" .
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"

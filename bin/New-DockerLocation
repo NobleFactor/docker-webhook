@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ########################################################################################################################
-# SPDX-FileCopyrightText: 2025 Noble Factor
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
@@ -23,11 +23,14 @@ set_env_from_file() {
     fi
 
     while IFS='=' read -r key value; do
+        
         [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue # Skip comments and empty lines
+
         # Remove surrounding quotes from value, but do not eval or run code
         value="${value%\"}"
         value="${value#\"}"
         local recognized=false
+
         for var in "${allowed_vars[@]}"; do
             if [[ "$key" == "$var" ]]; then
                 export "$key"="$value"
@@ -35,9 +38,11 @@ set_env_from_file() {
                 break
             fi
         done
+
         if [[ "$recognized" == false ]]; then
             note "Unrecognized environment variable in $env_file: $key"
         fi
+
     done < "$env_file"
 }
 

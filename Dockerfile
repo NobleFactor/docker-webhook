@@ -1,8 +1,14 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
 # Dockerfile for https://github.com/NobleFactor/docker-webhook
 
 ## Build
 
-FROM golang:trixie AS build
+ARG BUILDPLATFORM
+FROM --platform=$BUILDPLATFORM golang:trixie AS build
 
 LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
 WORKDIR /go/src/github.com/noblefactor/webhook
@@ -10,19 +16,24 @@ ARG webhook_version=2.8.2
 
 RUN <<EOF
 apt-get update --yes
-apt-get install --no-install-recommends curl
-curl -L --silent -o webhook.tar.gz https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz && \
+apt-get install --no-install-recommends --yes curl
+# use strict curl flags so failures are visible and fail the build early
+curl --fail --show-error --silent --retry 3 --retry-delay 2 --location --output webhook.tar.gz "https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz"
 tar -xzf webhook.tar.gz --strip 1
 go mod download
 CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook
+rm -rf /var/lib/apt/lists/*
 EOF
 
 ## Runtime
 
 FROM debian:trixie-slim AS runtime
 
-ARG s6_overlay_version=3.2.1.0
+ARG TARGETARCH
 ARG webhook_port=9000
+ARG s6_overlay_version=3.2.1.0
+
+SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
 
 ### Setup S6 Overlay and webook
 
@@ -38,41 +49,53 @@ ARG webhook_port=9000
 ##### Install prerequisites
 RUN <<EOF
 apt-get update --yes
-apt-get install --yes --no-install-recommends ca-certificates openssh-client tzdata xz-utils
+apt-get install --yes --no-install-recommends ca-certificates curl openssh-client tzdata xz-utils
 rm -rf /var/lib/apt/lists/*
 EOF
 
 ##### Install s6 overlay
 
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/s6-overlay-aarch64.tar.xz /tmp/
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/s6-overlay-noarch.tar.xz /tmp
-
 RUN <<EOF
-tar tf /tmp/s6-overlay-noarch.tar.xz
-tar xf /tmp/s6-overlay-noarch.tar.xz -C /
-tar xf /tmp/s6-overlay-aarch64.tar.xz -C /
-mkdir -p /etc/services.d/webhook/log
-rm /tmp/s6-overlay-{noarch,aarch64}.tar.xz
-apt-get remove --yes xz-utils
+declare -r arch_archive="s6-overlay-$(echo "$TARGETARCH" | sed 's/arm64/aarch64/').tar.xz"
+declare -r noarch_archive="s6-overlay-noarch.tar.xz"
+
+curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${arch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${arch_archive}"
+tar --directory=/ --xz --extract --preserve-permissions --file="/tmp/${arch_archive}"
+
+curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${noarch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${noarch_archive}"
+tar --directory=/ --xz --extract --preserve-permissions --file="/tmp/${noarch_archive}"
+
+rm -f "/tmp/${arch_archive}" "/tmp/${noarch_archive}"
+apt-get purge --auto-remove --yes xz-utils curl
 EOF
 
 ##### Install webhook
+
 COPY --from=build /usr/local/bin/webhook /usr/local/bin/webhook
-RUN useradd --system --uid 999 --user-group webhook
+RUN <<EOF
+useradd --system --uid 999 --user-group webhook
+mkdir -p /etc/services.d/webhook/log
+EOF
 
 ##### user
 RUN echo webhook > /etc/services.d/webhook/user
 
 ##### run
-RUN cat > /etc/services.d/webhook/run <<EOF
-#!/usr/bin/execlineb -P
-webhook -verbose -hooks=/usr/local/etc/webhook/hooks.json -hotreload -port=\${WEBHOOK_PORT} -secure -cert=/usr/local/etc/webhook/ssl-certificates/certificate.pem -key=/usr/local/etc/webhook/ssl-certificates/private-key.pem
+RUN cat > /etc/services.d/webhook/run <<'EOF'
+#!/bin/sh -e
+exec webhook -verbose \
+	-hooks=/usr/local/etc/webhook/hooks.json \
+	-port="${WEBHOOK_PORT:-9000}" \
+	-hotreload \
+	-secure \
+	-cert=/usr/local/etc/webhook/ssl-certificates/certificate.pem \
+	-key=/usr/local/etc/webhook/ssl-certificates/private-key.pem
 EOF
 RUN chmod +x /etc/services.d/webhook/run
 
 ##### log
 RUN cat > /etc/services.d/webhook/log/run <<EOF
-#!/usr/bin/execlineb -P
+#!/command/execlineb -P
 s6-log /var/log/webhook
 EOF
 RUN chmod +x /etc/services.d/webhook/log/run
@@ -83,4 +106,37 @@ ENV         WEBHOOK_PORT=${webhook_port}
 VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 
-ENTRYPOINT  ["/init"]
+RUN touch /noblefactor.init && chmod +x /noblefactor.init && cat > /noblefactor.init <<'EOF'
+#!/usr/bin/env bash
+set -o errexit -o nounset -o pipefail
+
+# Modify webhook user/group based on PUID/PGID environment variables at runtime.
+# This allows the container to match host user/group IDs for volume permissions.
+
+if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
+    echo "Runtime user/group modification requested"
+
+    current_uid=$(id --user webhook)
+    current_gid=$(id --group webhook)
+
+    if [[ -n "${PGID:-}" ]] && [[ "${PGID}" != "${current_gid}" ]]; then
+        echo "Modifying webhook group: ${current_gid} -> ${PGID}"
+        groupmod --gid "${PGID}" webhook
+    fi
+
+    if [[ -n "${PUID:-}" ]] && [[ "${PUID}" != "${current_uid}" ]]; then
+        echo "Modifying webhook user: ${current_uid} -> ${PUID}"
+        usermod --uid "${PUID}" webhook
+    fi
+
+    echo "Updating /usr/local/etc/webhook ownership..."
+    chown --recursive webhook:webhook /usr/local/etc/webhook 
+fi
+
+echo "Webhook user: $(id webhook)"
+
+# Chain to S6 overlay init
+exec /init "$@"
+EOF
+
+ENTRYPOINT  ["/noblefactor.init"]

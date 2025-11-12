@@ -1,4 +1,9 @@
-_new_docker_network_completions()
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+_new_dockernetwork_completions()
 {
     local cur prev opts
     COMPREPLY=()

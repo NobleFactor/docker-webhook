@@ -1,4 +1,9 @@
-_test_docker_location_generation_completions()
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+_test_dockerlocationgeneration_completions()
 {
     local cur prev opts
     COMPREPLY=()

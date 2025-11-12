@@ -20,6 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Lint Dockerfile with hadolint
+        uses: hadolint/hadolint-action@v1
+        with:
+          # Lint the repository Dockerfile. We also have a repo-level
+          # .hadolint.yaml that ignores DL3059 for intentional Buildx usage.
+          dockerfile: Dockerfile
+
       # https://github.com/docker/setup-qemu-action
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

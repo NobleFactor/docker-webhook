@@ -1,10 +1,20 @@
+# SPDX boxed header added
 ########################################################################################################################
 # SPDX-FileCopyrightText: 2016-2025 Noble Factor
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-#compdef Install-Dependencies
-_arguments \
-  '--help[Show usage information and exit]' \
-  '--dry-run[Show actions without making changes]' \
-  '--force[Force reinstallation of dependencies]'
+#compdef Test-DockerWebhookSanity
+
+_Test-DockerWebhookSanity() {
+  _arguments \
+    '--wait[Number of seconds to wait]:seconds:' \
+    '--keep[Do not remove the created container]' \
+    '*:image:->images'
+
+  if [[ $state == images ]]; then
+    _files
+  fi
+}
+
+_Test-DockerWebhookSanity "$@"
