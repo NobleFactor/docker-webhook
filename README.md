@@ -92,7 +92,9 @@ chmod +x test/Test-DockerWebhookSanity
 ```
 
 Notes:
+
 - The test by default uses the image `noblefactor/webhook:1.0.0-preview.1`. Pass an `image:tag` positional argument to test a different image.
+
 - The test will report success if it sees startup markers in the container logs (for example a version line and the "serving hooks" message). Missing hooks.json or TLS certs is expected for a plain smoke test and will not cause a failure if the server starts.
 
 If you'd like, I can add a `make test-sanity` target or a GitHub Actions job that exercises the built image in CI.
