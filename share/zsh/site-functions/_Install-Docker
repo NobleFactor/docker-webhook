@@ -1,0 +1,11 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Install-Docker
+_arguments \
+  '--help[Show usage information and exit]' \
+  '--no-install-recommends[Install only essential packages]' \
+  '--dry-run[Show actions without making changes]' \
+  '--force[Force reinstallation of Docker packages]'

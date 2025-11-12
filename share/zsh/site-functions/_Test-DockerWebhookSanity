@@ -1,0 +1,19 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Test-DockerWebhookSanity
+
+_Test-DockerWebhookSanity() {
+  _arguments \
+    '--wait[Number of seconds to wait]:seconds:' \
+    '--keep[Do not remove the created container]' \
+    '*:image:->images'
+
+  if [[ $state == images ]]; then
+    _files
+  fi
+}
+
+_Test-DockerWebhookSanity "$@"

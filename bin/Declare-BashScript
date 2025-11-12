@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Declare-BashScript - Bash script argument and option parsing helper
+
+set -o errexit -o nounset -o pipefail
+
+###########
+# Variables
+###########
+
+declare -r script_root="$(cd "$(dirname "$1")" && pwd)"
+declare -r script_name="$(basename "$1")"
+declare -r script_long_options="${2:-}"
+declare -r script_options="${3:-}"
+
+shift 3 || shift 2 || shift 1 ;# Shift past the first three arguments to leave only the options for parsing
+
+###########
+# Functions
+###########
+
+function install_script_to_local {
+    local src_script="${script_root}/${script_name}"
+    local src_man="${script_root}/../share/man/man1/${script_name}.1"
+    local src_bash_completion="${script_root}/../share/bash-completion/completions/${script_name}"
+    local src_zsh_completion="${script_root}/../share/zsh/site-functions/_${script_name}"
+
+    local dest_bin="${HOME}/.local/bin/${script_name}"
+    local dest_man="${HOME}/.local/share/man/man1/${script_name}.1"
+    local dest_bash_completion="${HOME}/.local/share/bash-completion/completions/${script_name}"
+    local dest_zsh_completion="${HOME}/.local/share/zsh/site-functions/_${script_name}"
+
+    mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/man/man1" \
+        "${HOME}/.local/share/bash-completion/completions" \
+        "${HOME}/.local/share/zsh/site-functions"
+
+    ln -sf "${src_script}" "${dest_bin}"
+    note "Linked script to ${dest_bin}"
+
+    if [[ -f "${src_man}" ]]; then
+        ln -sf "${src_man}" "${dest_man}"
+        note "Linked man page to ${dest_man}"
+    fi
+
+    if [[ -f "${src_bash_completion}" ]]; then
+        ln -sf "${src_bash_completion}" "${dest_bash_completion}"
+        note "Linked bash completion to ${dest_bash_completion}"
+    fi
+
+    if [[ -f "${src_zsh_completion}" ]]; then
+        ln -sf "${src_zsh_completion}" "${dest_zsh_completion}"
+        note "Linked zsh completion to ${dest_zsh_completion}"
+    fi
+
+    # Also install Declare-BashScript itself
+    local declare_src="${script_root}/Declare-BashScript"
+    local declare_dest_bin="${HOME}/.local/bin/Declare-BashScript"
+    local declare_dest_man="${HOME}/.local/share/man/man1/Declare-BashScript.1"
+    local declare_dest_bash_completion="${HOME}/.local/share/bash-completion/completions/Declare-BashScript"
+    local declare_dest_zsh_completion="${HOME}/.local/share/zsh/site-functions/_Declare-BashScript"
+
+    ln -sf "${declare_src}" "${declare_dest_bin}"
+    note "Linked Declare-BashScript to ${declare_dest_bin}"
+
+    if [[ -f "${script_root}/../share/man/man1/Declare-BashScript.1" ]]; then
+        ln -sf "${script_root}/../share/man/man1/Declare-BashScript.1" "${declare_dest_man}"
+        note "Linked Declare-BashScript man page to ${declare_dest_man}"
+    fi
+
+    if [[ -f "${script_root}/../share/bash-completion/completions/Declare-BashScript" ]]; then
+        ln -sf "${script_root}/../share/bash-completion/completions/Declare-BashScript" "${declare_dest_bash_completion}"
+        note "Linked Declare-BashScript bash completion to ${declare_dest_bash_completion}"
+    fi
+
+    if [[ -f "${script_root}/../share/zsh/site-functions/_Declare-BashScript" ]]; then
+        ln -sf "${script_root}/../share/zsh/site-functions/_Declare-BashScript" "${declare_dest_zsh_completion}"
+        note "Linked Declare-BashScript zsh completion to ${declare_dest_zsh_completion}"
+    fi
+
+    success "Installed ${script_name} and Declare-BashScript to ~/.local"
+}
+
+function usage {
+    local _synopsis="${1:-}"
+
+    # Require a synopsis so callers can provide a fallback when man is unavailable
+    if [[ -z "$_synopsis" ]]; then
+        printf '[%s] \033[31m%s\033[0m usage() requires a synopsis argument.\n' "$script_name" "$Heavy_ballot" >&2
+        exit 2
+    fi
+
+    # Prefer system man if available
+    if man -w "${script_name}" >/dev/null 2>&1; then
+        man "${script_name}"
+        exit 0
+    fi
+
+    # Fallback to a script-relative man path if present
+    if man -M "${script_root}/man" -w "${script_name}" >/dev/null 2>&1; then
+        man -M "${script_root}/man" "${script_name}"
+        exit 0
+    fi
+
+    # Final fallback: print the synopsis provided by the caller
+    printf "%s\n" "$_synopsis"
+    exit 0
+}
+
+function error {
+    local rc=$1
+    shift 1
+    printf '[%s] [\033[31m%s\033[0m] %s\n' "$script_name" "$Heavy_ballot" "$@" >&2
+    if (( $rc != 0 )); then
+        exit $rc
+    fi
+}
+
+function note {
+    printf "[%s] [+] %s\n" "$script_name" "$@" >&2
+}
+
+function success {
+    printf '[%s] [\033[32m%s\033[0m] %s\n' "$script_name" "$Heavy_check_mark" "$@" >&2
+}
+
+###########
+# Constants
+###########
+
+# useful for printing text to console...
+
+declare -r b="$(tput bold)"  ; # bold
+declare -r n="$(tput sgr0)"  ; # normal
+declare -r u="$(tput smul)"  ; # underline
+declare -r u_="$(tput rmul)" ; # underline off (neither $n nor $b defeat $u)
+
+declare -r Heavy_ballot='✘'
+declare -r Heavy_check_mark='✔'
+
+###########
+# Arguments
+###########
+
+declare -r script_arguments=$(getopt -n "${script_name}" -o "$script_options" --long "$script_long_options" -- "$@")
+
+if [ $? -ne 0 ]; then
+    error 1 "Unable to parse arguments: $arguments"
+fi

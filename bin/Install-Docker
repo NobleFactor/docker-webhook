@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Install-Docker - Install Docker CE, CLI, containerd, buildx, and compose plugin
+
+# REFERENCE: https://docs.docker.com/engine/install/ubuntu/
+
+source "$(dirname "$0")/Declare-BashScript" "$0" "help" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Installs Docker and verifies installation."
+eval set -- "$script_arguments"
+[[ $* != -- ]] || usage "$synopsis"
+
+while :; do
+    case "$1" in
+        -h|--help)
+            usage "$synopsis"
+            shift 1
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+    [[ $# -eq 0 ]] && break
+done
+
+set -o errexit -o nounset
+
+## Ensure all conflicting packages are absent
+for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+    if dpkg --list $pkg; then
+        sudo apt-get --yes remove "$pkg"
+    fi
+done
+
+sudo apt-get autoremove
+sudo apt-get update
+sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin lshw
+
+## Verify the installation
+declare -r product=$(sudo lshw -json | jq -r '.product')
+
+case $product in
+    ODROID-C[45]*)
+        ### Reference: https://sipfront.com/blog/2024/01/running-docker-on-odroid-c4/#:~:text=Fixing%20it%20by%20modifying%20the,media/boot/boot.ini
+        declare -r expected_bootargs='^setenv bootargs .*systemd\.unified_cgroup_hierarchy=0.*$'
+        declare -r boot_ini="$(sudo find /media/boot -name boot.ini -type f 2> /dev/null)"
+        if ! grep --count -e "${expected_bootargs}" "${boot_ini}" > /dev/null; then
+            cat 1>&2 <<EOF
+Next steps:
+
+1. Backup ${boot_ini}:
+       sudo cp ${boot_ini} ${boot_ini}.orig
+
+2. Search for this string in ${boot_ini}
+       ^setenv bootargs 
+
+3. Append this argument to the value of bootargs:
+       systemd.unified_cgroup_hierarchy=0
+   or add this line immediately after the bootargs line:
+      setenv bootargs "\${bootargs} systemd.unified_cgrou
+
+4. Reboot $(hostname):
+       sudo reboot now
+
+5. Execute this command to verify docker:
+       sudo docker run hello-world
+EOF
+            exit 0
+        fi
+        ;;
+    Raspberry\ Pi\ 5*)
+        ;;
+    *)
+        echo 1>&2 "Untested product: '${product}'"
+        ;;
+esac
+
+sudo docker run hello-world

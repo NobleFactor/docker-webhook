@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Test-DockerLocationGeneration - Automated test for Docker location-based artifact and certificate generation
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "test-location:,help" "" "$@"
+
+############
+# Functions
+############
+
+# Extract meaningful, deterministic info from a certificate
+extract_cert_info() {
+    local certificate="$1"
+    echo "Subject: $(openssl x509 -in "$certificate" -noout -subject | sed 's/^subject=//')"
+    echo "Extensions (excluding SKI):"
+    openssl x509 -in "$certificate" -noout -text | awk '/^X509v3/{flag=1} /Signature Algorithm/{flag=0} flag && !/X509v3 Subject Key Identifier/ {print}'
+}
+
+############
+# Arguments
+############
+
+eval set -- "$script_arguments"
+
+while :; do
+    case "$1" in
+        -h|--help)
+            usage "Test-HomebridgeLocationGeneration [--test-location <location>] [--help]"; # does not return
+            shift 1
+            ;;
+        --test-location)
+            declare -r test_location="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+    [[ $# -eq 0 ]] && break
+done
+
+[[ -n "${test_location:-}" ]] || declare -r test_location="zz-xy"
+
+############
+# Main
+############
+
+pushd "${script_root}/.."
+
+# Paths for comparison
+
+declare -r baseline_dir="test/baseline"
+
+declare -r baseline_compose_file="${baseline_dir}/webhook-${test_location}.yaml"
+declare -r baseline_env_file="${baseline_dir}/webhook-${test_location}.env"
+declare -r baseline_secrets_dir="${baseline_dir}/webhook.config"
+declare -r baseline_certificates_dir="${baseline_secrets_dir}/${test_location}/ssl-certificates"
+
+declare -r generated_compose_file="webhook-${test_location}.yaml"
+declare -r generated_env_file="webhook-${test_location}.env"
+declare -r generated_secrets_dir="webhook.config"
+declare -r generated_certificates_dir="${generated_secrets_dir}/${test_location}/ssl-certificates"
+
+# Remove any generated artifacts before starting
+
+note "Removing old generated artifacts"
+rm --verbose -rf "${generated_certificates_dir}" "${generated_env_file}" "${generated_compose_file}"
+
+# Generate artifacts
+
+note "Generating artifacts with bin/New-DockerLocation --env-file=${baseline_env_file}"
+echo >&2 && bin/New-DockerLocation --env-file="${baseline_env_file}"
+make New-WebhookCertificates LOCATION="${test_location}"
+
+# Verify results
+
+passed_tests=0 total_tests=0
+
+# 1. Check for file existence
+
+total_tests=$((total_tests + 1))
+
+if [[ -f "$generated_compose_file" ]]; then
+    success "Generated compose file found: $generated_compose_file"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated compose file not found: $generated_compose_file"
+fi
+
+total_tests=$((total_tests + 1))
+
+if [[ -f "$generated_env_file" ]]; then
+    success "Generated env file found: $generated_env_file"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated env file not found: $generated_env_file"
+fi
+
+total_tests=$((total_tests + 1))
+
+if [[ -d "$generated_certificates_dir" ]]; then
+    success "Generated certificates directory found: $generated_certificates_dir"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated certificates directory not found: $generated_certificates_dir"
+fi
+
+total_tests=$((total_tests + 1))
+
+if [[ -f "$generated_certificates_dir/certificate-request.conf" ]]; then
+    success "Generated certificate request file found: $generated_certificates_dir/certificate-request.conf"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated certificate request file not found: $generated_certificates_dir/certificate-request.conf"
+fi
+
+total_tests=$((total_tests + 1))
+
+if [[ -f "$generated_certificates_dir/self-signed.csr" ]]; then
+    success "Generated self-signed CSR file found: $generated_certificates_dir/self-signed.csr"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated self-signed CSR file not found: $generated_certificates_dir/self-signed.csr"
+fi
+
+total_tests=$((total_tests + 1))
+
+if [[ -f "$generated_certificates_dir/certificate.pem" ]]; then
+    success "Generated public key file found: $generated_certificates_dir/certificate.pem"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Generated public key file not found: $generated_certificates_dir/certificate.pem"
+fi
+
+# 2. Compare compose files
+
+echo >&2 && note "=> Comparing $generated_compose_file to $baseline_compose_file"
+total_tests=$((total_tests + 1))
+
+if diff "$generated_compose_file" "$baseline_compose_file"; then
+    success "Compose files match"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Compose files differ"
+fi
+
+# 3. Compare env files
+
+echo >&2 && note "=> Comparing $generated_env_file to $baseline_env_file"
+total_tests=$((total_tests + 1))
+
+if diff "$generated_env_file" "$baseline_env_file"; then
+    success "Env files match"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Env files differ"
+fi
+
+# 4. Compare certificate requests
+
+echo >&2 && note "=> Comparing $generated_certificates_dir/certificate-request.conf to $baseline_certificates_dir/certificate-request.conf"
+total_tests=$((total_tests + 1))
+
+if diff "$generated_certificates_dir/certificate-request.conf" "$baseline_certificates_dir/certificate-request.conf"; then
+    success "Certificate requests match"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Certificate requests differ"
+fi
+
+# 5. Field by field comparison for self-signed.csr
+
+echo >&2 && note "=> Comparing $generated_certificates_dir/self-signed.csr to $baseline_certificates_dir/self-signed.csr"
+total_tests=$((total_tests + 1))
+
+observed="$(openssl asn1parse -in "$generated_certificates_dir/self-signed.csr" -inform PEM)"
+expected="$(openssl asn1parse -in "$baseline_certificates_dir/self-signed.csr" -inform PEM)"
+
+if [[ "$observed" == "$expected" ]]; then
+    success "Certificate signing requests match"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Certificate signing requests differ"
+    diff -u <(echo "$observed") <(echo "$expected") || true
+fi
+
+# 6. Field-by-field comparison for public-key.pem
+
+echo >&2 && note "=> Comparing $generated_certificates_dir/public-key.pem to $baseline_certificates_dir/public-key.pem"
+total_tests=$((total_tests + 1))
+
+observed=$(extract_cert_info "$generated_certificates_dir/public-key.pem")
+expected=$(extract_cert_info "$baseline_certificates_dir/public-key.pem")
+
+if [[ "$observed" == "$expected" ]]; then
+    success "Public keys match"
+    passed_tests=$((passed_tests + 1))
+else
+    error 0 "Public keys differ"
+    diff -u <(echo "$observed") <(echo "$expected") || true
+fi
+
+# Remove generated artifacts if all tests passed
+
+if (( passed_tests == total_tests )); then
+    echo >&2 && success "${passed_tests}/${total_tests} tests passed. Cleaning up generated artifacts."
+    rm --verbose -rf "$generated_certificates_dir" "$generated_compose_file" "$generated_env_file"
+else
+    echo >&2 && error 0 "$passed_tests/${total_tests} tests passed. Generated artifacts left in place for inspection."
+fi

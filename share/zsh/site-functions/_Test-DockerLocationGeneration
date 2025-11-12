@@ -1,0 +1,9 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Test-DockerLocationGeneration
+_arguments \
+  '--test-location[Specify the test location]' \
+  '--help[Show usage information and exit]'

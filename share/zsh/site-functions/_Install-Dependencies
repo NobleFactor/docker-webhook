@@ -1,0 +1,10 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Install-Dependencies
+_arguments \
+  '--help[Show usage information and exit]' \
+  '--dry-run[Show actions without making changes]' \
+  '--force[Force reinstallation of dependencies]'
