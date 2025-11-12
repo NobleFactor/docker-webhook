@@ -16,7 +16,7 @@ services:
       WEBHOOK_PUID: ${WEBHOOK_PUID:-}
       WEBHOOK_GUID: ${WEBHOOK_GUID:-}
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent --output /dev/null --show-error --write-out \"Total time: %{time_total}s\\n\" http://localhost:${WEBHOOK_PORT:-9000}/health || exit 1"]
+      test: ["CMD-SHELL", "status=$(curl --silent -o /dev/null -w '%{http_code}' http://localhost:${WEBHOOK_PORT:-9000}/) ; [ \"$status\" -eq 200 ] || exit 1"]
       interval: 60s
       retries: 5
       start_period: 300s

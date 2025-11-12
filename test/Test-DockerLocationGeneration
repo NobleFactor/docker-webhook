@@ -7,7 +7,7 @@
 
 # Test-DockerLocationGeneration - Automated test for Docker location-based artifact and certificate generation
 
-source "$(dirname "$0")/../build/Declare-BashScript" "$0" "test-location:,help" "" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "test-location:,help" "" "$@"
 
 ############
 # Functions
@@ -48,7 +48,7 @@ while :; do
     [[ $# -eq 0 ]] && break
 done
 
-[[ -n "${test_location:-}" ]] || declare -r test_location="fake-wa"
+[[ -n "${test_location:-}" ]] || declare -r test_location="zz-xy"
 
 ############
 # Main
@@ -60,15 +60,15 @@ pushd "${script_root}/.."
 
 declare -r baseline_dir="test/baseline"
 
-declare -r baseline_compose_file="${baseline_dir}/homebridge-${test_location}.yaml"
-declare -r baseline_env_file="${baseline_dir}/homebridge-${test_location}.env"
+declare -r baseline_compose_file="${baseline_dir}/webhook-${test_location}.yaml"
+declare -r baseline_env_file="${baseline_dir}/webhook-${test_location}.env"
 declare -r baseline_secrets_dir="${baseline_dir}/webhook.config"
-declare -r baseline_certificates_dir="${baseline_secrets_dir}/certificates/${test_location}"
+declare -r baseline_certificates_dir="${baseline_secrets_dir}/${test_location}/ssl-certificates"
 
-declare -r generated_compose_file="homebridge-${test_location}.yaml"
-declare -r generated_env_file="homebridge-${test_location}.env"
+declare -r generated_compose_file="webhook-${test_location}.yaml"
+declare -r generated_env_file="webhook-${test_location}.env"
 declare -r generated_secrets_dir="webhook.config"
-declare -r generated_certificates_dir="${generated_secrets_dir}/certificates/${test_location}"
+declare -r generated_certificates_dir="${generated_secrets_dir}/${test_location}/ssl-certificates"
 
 # Remove any generated artifacts before starting
 
@@ -77,9 +77,9 @@ rm --verbose -rf "${generated_certificates_dir}" "${generated_env_file}" "${gene
 
 # Generate artifacts
 
-note "Generating artifacts with build/New-HomebridgeLocation --env-file=test/homebridge-${test_location}.env"
-echo >&2 && build/New-HomebridgeLocation --env-file="test/homebridge-${test_location}.env"
-make New-HomebridgeCertificates LOCATION="${test_location}"
+note "Generating artifacts with bin/New-DockerLocation --env-file=${baseline_env_file}"
+echo >&2 && bin/New-DockerLocation --env-file="${baseline_env_file}"
+make New-WebhookCertificates LOCATION="${test_location}"
 
 # Verify results
 
@@ -134,11 +134,11 @@ fi
 
 total_tests=$((total_tests + 1))
 
-if [[ -f "$generated_certificates_dir/public-key.pem" ]]; then
-    success "Generated public key file found: $generated_certificates_dir/public-key.pem"
+if [[ -f "$generated_certificates_dir/certificate.pem" ]]; then
+    success "Generated public key file found: $generated_certificates_dir/certificate.pem"
     passed_tests=$((passed_tests + 1))
 else
-    error 0 "Generated public key file not found: $generated_certificates_dir/public-key.pem"
+    error 0 "Generated public key file not found: $generated_certificates_dir/certificate.pem"
 fi
 
 # 2. Compare compose files

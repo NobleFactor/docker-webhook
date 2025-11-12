@@ -59,4 +59,4 @@ fi
 echo "$(hostname) user: $(id "${user}")"
 
 # Chain to S6 overlay init
-exec /init "$@"
+exec /init

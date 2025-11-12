@@ -1,0 +1,18 @@
+Updating volume ownership...
+webhook-us-wa-dev user: uid=999(webhook) gid=999(webhook) groups=999(webhook)
+s6-rc: info: service s6rc-oneshot-runner: starting
+s6-rc: info: service s6rc-oneshot-runner successfully started
+s6-rc: info: service fix-attrs: starting
+s6-rc: info: service fix-attrs successfully started
+s6-rc: info: service legacy-cont-init: starting
+s6-rc: info: service legacy-cont-init successfully started
+s6-rc: info: service legacy-services: starting
+services-up: info: copying legacy longrun webhook (no readiness notification)
+s6-rc: info: service legacy-services successfully started
+[webhook] 2025/11/12 21:07:50 version 2.8.2 starting
+[webhook] 2025/11/12 21:07:50 setting up os signal watcher
+[webhook] 2025/11/12 21:07:50 attempting to load hooks from /usr/local/etc/webhook/hooks.json
+[webhook] 2025/11/12 21:07:50 os signal watcher ready
+[webhook] 2025/11/12 21:07:50 found 0 hook(s) in file
+[webhook] 2025/11/12 21:07:50 setting up file watcher for /usr/local/etc/webhook/hooks.json
+[webhook] 2025/11/12 21:07:50 serving hooks on https://0.0.0.0:9000/hooks/{id}
