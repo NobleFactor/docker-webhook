@@ -106,38 +106,7 @@ ENV         WEBHOOK_PORT=${webhook_port}
 VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 
-RUN touch /noblefactor.init && chmod +x /noblefactor.init && cat > /noblefactor.init <<'EOF'
-#!/usr/bin/env bash
-set -o errexit -o nounset -o pipefail
-declare -r user="${1}"
+COPY scripts/noblefactor.init /noblefactor.init
+RUN chmod +x /noblefactor.init
 
-# Modify the give user's primary user/group ID's based on PUID/PGID environment variables at runtime.
-# This allows the container to match host user/group IDs for volume permissions.
-
-if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
-    echo "Runtime user/group modification requested"
-
-    current_uid=$(id --user "${user}")
-    current_gid=$(id --group "${user}")
-
-    if [[ -n "${PGID:-}" ]] && [[ "${PGID}" != "${current_gid}" ]]; then
-        echo "Modifying webhook group: ${current_gid} -> ${PGID}"
-        groupmod --gid "${PGID}" "${user}"
-    fi
-
-    if [[ -n "${PUID:-}" ]] && [[ "${PUID}" != "${current_uid}" ]]; then
-        echo "Modifying webhook user: ${current_uid} -> ${PUID}"
-        usermod --uid "${PUID}" "${user}"
-    fi
-
-    echo "Updating /usr/local/etc/webhook ownership..."
-    chown --recursive "${user}":"$(id -gn "${user}")" /usr/local/etc/webhook 
-fi
-
-echo "Webhook user: $(id "${user}")"
-
-# Chain to S6 overlay init
-exec /init "$@"
-EOF
-
-ENTRYPOINT  ["/noblefactor.init", "webhook"]
+ENTRYPOINT  ["/noblefactor.init", "webhook", "/usr/local/etc/webhook"]
