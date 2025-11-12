@@ -164,7 +164,7 @@ docker_compose := sudo \
 
 HELP_COLWIDTH ?= 28
 
-.PHONY: help help-short help-full clean test Get-WebhookStatus Mount-WebhookBackups New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
+.PHONY: help help-short help-full clean test Get-WebhookStatus New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
 
 ##@ Help
 help: help-short ## Show brief help (alias: help-short)
@@ -173,16 +173,16 @@ help-short: ## Show brief help for annotated targets
 	@awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
 
 help-full: ## Show detailed usage (man page)
-	@man -P 'less -R' -l "$(project_root)/docs/webhook-image.1"
+	@man "$(project_root)/docs/docker-webhook.1"
 
 ##@ Utilities
+
 clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROUS)
 	$(MAKE) Stop-Webhook
 	sudo docker network rm --force $(network_name) || true
 	sudo docker system prune --force --all
 	sudo docker volume prune --force --all
 
-##@ Utilities
 test: ## Runs repository test scripts
 	@chmod +x test/Test-DockerWebhookSanity test/Test-DockerLocationGeneration || true
 	@echo "==> Running Test-DockerWebhookSanity"
@@ -190,7 +190,8 @@ test: ## Runs repository test scripts
 	@echo "==> Running Test-DockerLocationGeneration"
 	@./test/Test-DockerLocationGeneration --test-location fake-wa || { echo "Test-DockerLocationGeneration failed"; exit 1; }
 
-##@ Location
+##@ Build and Create
+
 New-WebhookLocation: ## Ensure location files exist; generate if missing or older than webhook-$(LOCATION).env
 	@env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
 	@if [[ ! -f "$$env_file" ]]; then
@@ -209,47 +210,15 @@ New-WebhookLocation: ## Ensure location files exist; generate if missing or olde
 		$(project_root)/bin/New-DockerLocation --env-file="$$env_file"
 	fi
 
-##@ Status
-Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
-	$(docker_compose) ps --all --format json --no-trunc | jq .
-
-##@ Backups
-Mount-WebhookBackups: ## Mount OneDrive backups via rclone
-
-	@declare -r mount_subcommand=$$([[ $(OS) == Darwin ]] && echo nfsmount || echo mount) 
-	@declare -r remote_path="onedrive:Webhook/backups"
-	@declare -r mount_dir="WebhookBackups"
-	@declare -r rclone_log_file="$${mount_dir}/../WebhookBackups.rclone.log"
-
-	@mkdir --parents "$${mount_dir}"
-
-	@pids="$$(ps -eo pid=,args= | awk -v mount="$$mount_subcommand" -v remote="$$remote_path" -v mount_dir="$$mount_dir" 'index($$0, "rclone " mount " " remote " " mount_dir) { print $$1 }')"
-	@if [[ -n "$$pids" ]]; then
-		kill $$pids || true
-	fi
-
-	rclone "$${mount_subcommand}" "$${remote_path}" "$${mount_dir}" \
-		--vfs-cache-mode=full \
-		--daemon \
-		--log-level=DEBUG \
-		--log-file="$${rclone_log_file}" || true
-
-	@if [[ -f "$${rclone_log_file}" ]]; then
-		awk 'END{print}' "$${rclone_log_file}" || true
-	fi
-
-##@ Build and Create
 New-Webhook: New-WebhookImage New-WebhookContainer ## Build image and create container
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
-##@ SSL Certificates
 New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
 	@cd "$(ssl_certificates_root)"
 	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
 	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
 
-##@ Container
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create container from existing image and prepare volumes
 
 	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
@@ -271,7 +240,6 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create 
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
-##@ Image
 New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
 	@sudo docker buildx build \
@@ -285,7 +253,6 @@ New-WebhookImage: ## Build the Webhook image only
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
 
-##@ SSH Keys
 New-WebhookKeys: ## Generate SSH keys for LOCATION
 	@mkdir --parent $(ssh_keys_root)
 	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
@@ -295,21 +262,27 @@ Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) 
 	$(docker_compose) restart
 	$(MAKE) Get-WebhookStatus
  
-##@ Lifecycle
 Start-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ## Start container
 	$(docker_compose) start
 	$(MAKE) Get-WebhookStatus
 
-##@ Lifecycle
 Start-WebhookShell: ## Open interactive shell in the container
 	@sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
 
-##@ Lifecycle
 Stop-Webhook: ## Stop container
 	$(docker_compose) stop
 	$(MAKE) Get-WebhookStatus
 
-##@ SSL Certificates
+##@ Runtime status
+Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
+	$(docker_compose) ps --all --format json --no-trunc | jq .
+
+##@ Runtime resource updates
+
+Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
+	mkdir --parent "$(volume_root)/ssh"
+	cp --verbose $(ssh_keys) "$(volume_root)/ssh"
+
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
 	@mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
 	@cp --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
@@ -317,12 +290,6 @@ Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into co
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Ensure that Webhook in $(LOCATION) loads new certificates: make Restart-Webhook"
 
-##@ SSH Keys
-Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
-	mkdir --parent "$(volume_root)/ssh"
-	cp --verbose $(ssh_keys) "$(volume_root)/ssh"
-
-##@ Webhook Hooks
 Update-WebhookHooks: $(webhook_hooks) ## Copy hooks.json file in container volume for LOCATION
 	mkdir --parent "$(volume_root)"
 	cp --verbose "$(webhook_hooks)" "$(volume_root)"

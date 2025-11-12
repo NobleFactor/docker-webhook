@@ -19,10 +19,8 @@ shift 1
 # Modify the give user's primary user/group ID's based on PUID/PGID environment variables at runtime.
 # This allows the container to match host user/group IDs for volume permissions.
 
-current_uid=$(id --user "${user}")
-declare -r current_uid
-current_gid=$(id --group "${user}")
-declare -r current_gid
+declare -r current_uid=$(id --user "${user}")
+declare -r current_gid=$(id --group "${user}")
 
 if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
 
