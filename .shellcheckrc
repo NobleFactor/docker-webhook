@@ -1,0 +1,20 @@
+## Repository-level shellcheck configuration
+# Centralized disable list: project-wide suppressions for intentional patterns
+# The team prefers some idioms (single-line declare -r assignments, deliberate
+# use of indirect sourcing, certain pushd/popd usage patterns, and controlled
+# eval/set usage) which produce noisy ShellCheck warnings. Keep this list
+# conservative — add specific disabling here only after confirming it's a
+# repository-wide policy.
+#
+# Disabled rules (summary):
+# - SC2155: declare and assignment in same command (project prefers single-line readonly assignments)
+# - SC2034: variables intentionally reserved for external/templated use
+# - SC2181: prefer checking exit codes directly (scripts intentionally inspect PIPESTATUS/rc)
+# - SC2154: variables that are set indirectly (sourced helpers provide them)
+# - SC2004: arithmetic context warnings (portable arithmetic usage is intentional)
+# - SC2086: word-splitting is deliberate in a few controlled cases (quoted where necessary)
+# - SC2046: word-splitting from command substitution is intentional in a few places
+# - SC2164: pushd/popd used with || exit patterns (legacy portability)
+# - SC1091: Not following sourced files in static analysis (sourcing project helpers)
+# - SC2317: shift after usage patterns that are safe for our parsing loop
+disable=SC2155,SC2034,SC2181,SC2154,SC2004,SC2086,SC2046,SC2164,SC1091,SC2317

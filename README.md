@@ -14,7 +14,7 @@ This fork contains a number of Noble Factor-specific improvements, tooling, and 
 - Runtime service management via s6-overlay and execlineb — the `Dockerfile` extracts and installs s6/execline packages into `/package/admin` and exposes helper symlinks in `/command`.
 - A repeatable runtime sanity test: `test/Test-DockerWebhookSanity` — a small script to start the image, wait for initialization, capture logs, inspect `/init` and s6 layout, and optionally keep the container for debugging.
 - Man pages and shell completions under `share/man` and `share/completions` for developer tooling (e.g., `Test-DockerWebhookSanity`, `Declare-BashScript`, and other helper scripts).
-- CI lint workflow: `.github/workflows/lint.yml` runs Dockerfile and manpage/spell checks on pushes/PRs.
+- CI Quality Gate workflow: `.github/workflows/quality-gate.yml` runs Dockerfile and manpage/spell checks on pushes/PRs.
 - Dockerfile and build improvements to avoid linter parser issues (heredoc -> printf-based RUN blocks) and to make the init wrapper tracked and testable.
 
 If you'd like a short summary of what exactly changed in code (files/commits), run `git log --name-only feature/debian-s6-overlay-param-port..HEAD` or open the branch's PR.

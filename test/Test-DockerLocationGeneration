@@ -6,6 +6,7 @@
 ########################################################################################################################
 
 # Test-DockerLocationGeneration - Automated test for Docker location-based artifact and certificate generation
+# shellcheck source=../bin/Declare-BashScript
 
 source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "test-location:,help" "" "$@"
 
@@ -54,7 +55,7 @@ done
 # Main
 ############
 
-pushd "${script_root}/.."
+pushd "${script_root}/.." || exit
 
 # Paths for comparison
 
@@ -135,10 +136,10 @@ fi
 total_tests=$((total_tests + 1))
 
 if [[ -f "$generated_certificates_dir/certificate.pem" ]]; then
-    success "Generated public key file found: $generated_certificates_dir/certificate.pem"
+    success "Generated certificate file found: $generated_certificates_dir/certificate.pem"
     passed_tests=$((passed_tests + 1))
 else
-    error 0 "Generated public key file not found: $generated_certificates_dir/certificate.pem"
+    error 0 "Generated certificate file not found: $generated_certificates_dir/certificate.pem"
 fi
 
 # 2. Compare compose files
@@ -193,13 +194,13 @@ else
     diff -u <(echo "$observed") <(echo "$expected") || true
 fi
 
-# 6. Field-by-field comparison for public-key.pem
+# 6. Field-by-field comparison for certificate.pem
 
-echo >&2 && note "=> Comparing $generated_certificates_dir/public-key.pem to $baseline_certificates_dir/public-key.pem"
+echo >&2 && note "=> Comparing $generated_certificates_dir/certificate.pem to $baseline_certificates_dir/certificate.pem"
 total_tests=$((total_tests + 1))
 
-observed=$(extract_cert_info "$generated_certificates_dir/public-key.pem")
-expected=$(extract_cert_info "$baseline_certificates_dir/public-key.pem")
+observed=$(extract_cert_info "$generated_certificates_dir/certificate.pem")
+expected=$(extract_cert_info "$baseline_certificates_dir/certificate.pem")
 
 if [[ "$observed" == "$expected" ]]; then
     success "Public keys match"

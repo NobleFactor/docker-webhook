@@ -24,3 +24,6 @@ Desktop.ini
 # Generated environment files
 /webhook-*.yaml
 /webhook-*.env
+
+# Test artifacts
+/test/artifacts/
