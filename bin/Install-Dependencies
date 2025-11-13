@@ -7,9 +7,59 @@
 
 # Install-Dependencies - Install required dependencies for docker-webhook
 
+# shellcheck source=bin/Declare-BashScript
 source "$(dirname "$0")/Declare-BashScript" "$0" "" "" "$@"
 
-sudo apt update 
-sudo apt install --yes curl gawk grepcidr ipcalc jq
+case "$(uname)" in
+Darwin)
 
-sudo "${script_root}/Install-Docker"
+    # Check for package manager
+
+    if command -v port > /dev/null; then
+        sudo port selfupdate
+    elif command -v brew > /dev/null; then
+        brew update
+    else
+        error 1 "A package manager is required to install prerequisites. Please install HomeBrew or MacPorts.
+Homebrew install instructions: https://brew.sh/
+MacPorts install instructions: https://www.macports.org/install.php
+"
+    fi
+
+    # Install Docker
+    
+    if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
+        if command -v port > /dev/null; then
+            sudo port selfupdate
+            sudo port install colima docker
+        else
+            brew update
+            brew install colima docker
+        fi
+        note "Starting the docker daemon with: colima start --cpu 2 --memory 4..."
+        colima start --cpu 2 --memory 4
+        note "Checking the docker runtime..."
+        docker info >/dev/null 2>&1 || error 0 "docker info failed; daemon may be unavailable"
+        docker run --rm hello-world >/dev/null 2>&1 || error 0 "hello-world run failed; skipping verification"
+    fi
+
+    # Install Utilities
+
+    if command -v port > /dev/null; then
+        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck; do
+            command -v "${utility}" > /dev/null || sudo port install "${utility}"
+        done
+    else
+        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck; do
+            command -v "${utility}" > /dev/null || brew install "${utility}"
+        done 
+    fi
+    ;;
+Linux)
+    sudo apt update 
+    sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck
+    # script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
+    # shellcheck disable=SC2154
+    sudo "${script_root}/Install-Docker"
+    ;;
+esac

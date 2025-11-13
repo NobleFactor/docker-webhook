@@ -185,6 +185,13 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 
 test: ## Runs repository test scripts
 	@chmod +x test/Test-DockerWebhookSanity test/Test-DockerLocationGeneration || true
+	@echo "==> Running shellcheck"
+	@shell_scripts=$$(find bin test -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' {} + 2>/dev/null || true);
+	@if [[ -n "$$shell_scripts" ]]; then
+		@shellcheck -x $$shell_scripts || { echo "shellcheck detected issues"; exit 1; }
+	else
+		@echo "No shell scripts found to lint"
+	fi
 	@echo "==> Running Test-DockerWebhookSanity"
 	@./test/Test-DockerWebhookSanity --wait 2 || { echo "Test-DockerWebhookSanity failed"; exit 1; }
 	@echo "==> Running Test-DockerLocationGeneration"
