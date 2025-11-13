@@ -51,7 +51,7 @@ if (( $# > 0 )); then
     echo "Updating volume ownership..."
     declare -r target_uid="${PUID:-$current_uid}"
     declare -r target_gid="${PGID:-$current_gid}"
-    chown --recursive "${target_uid}:${target_gid}" "$@"
+    chown --recursive --verbose "${target_uid}:${target_gid}" "$@"
 else
     echo "No paths provided to chown, skipping ownership update."
 fi

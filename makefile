@@ -116,6 +116,7 @@ override ssh_keys := \
 #### webhook hooks
 
 override webhook_hooks := $(project_root)/$(ROLE).config/$(LOCATION)/hooks.json
+override webhook_command := $(project_root)/$(ROLE).config/$(LOCATION)/command/remote-mac
 
 ### CONTAINER VOLUMES
 
@@ -154,26 +155,28 @@ override network_name := $(shell \
 ## TARGETS
 
 docker_compose := sudo \
-    WEBHOOK_IMAGE="${IMAGE}" \
-    WEBHOOK_PORT="$(WEBHOOK_PORT)" \
     LOCATION="$(LOCATION)" \
     CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
     CONTAINER_DOMAIN_NAME="$(CONTAINER_DOMAIN_NAME)" \
+    WEBHOOK_IMAGE="${IMAGE}" \
+    WEBHOOK_PORT="$(WEBHOOK_PORT)" \
+	WEBHOOK_PUID="${WEBHOOK_PUID}" \
+	WEBHOOK_PGID="${WEBHOOK_PGID}" \
     NETWORK_NAME="$(network_name)" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
 
-.PHONY: help help-short help-full clean test Get-WebhookStatus New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
+.PHONY: help help-short help-full clean format test Get-WebhookStatus New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
 
 ##@ Help
 help: help-short ## Show brief help (alias: help-short)
 
-help-short: ## Show brief help for annotated targets
-	@awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
-
 help-full: ## Show detailed usage (man page)
 	@man "$(project_root)/docs/docker-webhook.1"
+
+help-short: ## Show brief help for annotated targets
+	@awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
 
 ##@ Utilities
 
@@ -182,6 +185,15 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 	sudo docker network rm --force $(network_name) || true
 	sudo docker system prune --force --all
 	sudo docker volume prune --force --all
+
+format: ## Format shell scripts in-place using shfmt (4-space indent)
+	@echo "==> Formatting shell scripts with shfmt"
+	@shell_scripts=$$(find bin test webhook.config.example -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\\b' {} + 2>/dev/null || true);
+	@if [[ -n "$$shell_scripts" ]]; then
+		@shfmt -w -i 4 $$shell_scripts || { echo "shfmt failed"; exit 1; }
+	else
+		@echo "No shell scripts found to format"
+	fi
 
 test: ## Runs repository test scripts
 	@chmod +x test/Test-DockerWebhookSanity test/Test-DockerLocationGeneration || true
@@ -226,7 +238,7 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
 	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
 
-New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) ## Create container from existing image and prepare volumes
+New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_command) ## Create container from existing image and prepare volumes
 
 	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
 		echo "An IP_RANGE is required for macvlan. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
@@ -295,9 +307,9 @@ Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into co
 	@cp --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
 	@cp --verbose $(ssh_keys) "$(volume_root)/ssh"
 	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Ensure that Webhook in $(LOCATION) loads new certificates: make Restart-Webhook"
+	@echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
 
-Update-WebhookHooks: $(webhook_hooks) ## Copy hooks.json file in container volume for LOCATION
+Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and command script into container volume for LOCATION
 	mkdir --parent "$(volume_root)"
 	cp --verbose "$(webhook_hooks)" "$(volume_root)"
 

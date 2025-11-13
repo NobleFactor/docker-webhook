@@ -1,0 +1,34 @@
+name: shfmt-check
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  shfmt:
+    name: Check shell formatting with shfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Go (to get shfmt)
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Install shfmt
+        run: |
+          GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Run shfmt check
+        run: |
+          shell_scripts=$(find bin test webhook.config.example -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\\b' {} + 2>/dev/null || true)
+          if [[ -n "$shell_scripts" ]]; then
+            shfmt -d -i 4 $shell_scripts || (echo "shfmt detected formatting issues. Run 'make fmt' locally." && exit 1)
+          else
+            echo "No shell scripts found"
+          fi

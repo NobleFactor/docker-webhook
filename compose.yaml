@@ -13,8 +13,8 @@ services:
     environment:
       NOBLEFACTOR_WEBHOOK_LOCATION: ${LOCATION}
       WEBHOOK_PORT: ${WEBHOOK_PORT:-9000}
-      WEBHOOK_PUID: ${WEBHOOK_PUID:-}
-      WEBHOOK_GUID: ${WEBHOOK_GUID:-}
+      PUID: ${WEBHOOK_PUID:-}
+      PGID: ${WEBHOOK_GUID:-}
     healthcheck:
       test: ["CMD-SHELL", "status=$(curl --silent -o /dev/null -w '%{http_code}' http://localhost:${WEBHOOK_PORT:-9000}/) ; [ \"$status\" -eq 200 ] || exit 1"]
       interval: 60s

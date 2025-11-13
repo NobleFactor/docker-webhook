@@ -49,7 +49,7 @@ SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefai
 ##### Install prerequisites
 RUN <<EOF
 apt-get update --yes
-apt-get install --yes --no-install-recommends ca-certificates curl openssh-client tzdata xz-utils
+apt-get install --yes --no-install-recommends ca-certificates curl jq openssh-client tzdata xz-utils
 rm -rf /var/lib/apt/lists/*
 EOF
 
