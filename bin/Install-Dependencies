@@ -59,7 +59,6 @@ Linux)
     sudo apt update 
     sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck
     # script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
-    # shellcheck disable=SC2154
     sudo "${script_root}/Install-Docker"
     ;;
 esac

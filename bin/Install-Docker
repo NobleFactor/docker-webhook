@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source=bin/Declare-BashScript
 
 ########################################################################################################################
 # SPDX-FileCopyrightText: 2016-2025 Noble Factor
@@ -40,7 +41,7 @@ set -o errexit -o nounset
 
 ## Ensure all conflicting packages are absent
 for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-    if dpkg --list $pkg; then
+    if dpkg --list "$pkg"; then
         sudo apt-get --yes remove "$pkg"
     fi
 done

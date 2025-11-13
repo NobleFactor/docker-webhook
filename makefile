@@ -195,7 +195,7 @@ test: ## Runs repository test scripts
 	@echo "==> Running Test-DockerWebhookSanity"
 	@./test/Test-DockerWebhookSanity --wait 2 || { echo "Test-DockerWebhookSanity failed"; exit 1; }
 	@echo "==> Running Test-DockerLocationGeneration"
-	@./test/Test-DockerLocationGeneration --test-location fake-wa || { echo "Test-DockerLocationGeneration failed"; exit 1; }
+	@./test/Test-DockerLocationGeneration --test-location zz-xy || { echo "Test-DockerLocationGeneration failed"; exit 1; }
 
 ##@ Build and Create
 
