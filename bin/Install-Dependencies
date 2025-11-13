@@ -15,9 +15,9 @@ Darwin)
 
     # Check for package manager
 
-    if command -v port > /dev/null; then
+    if command -v port >/dev/null; then
         sudo port selfupdate
-    elif command -v brew > /dev/null; then
+    elif command -v brew >/dev/null; then
         brew update
     else
         error 1 "A package manager is required to install prerequisites. Please install HomeBrew or MacPorts.
@@ -27,9 +27,9 @@ MacPorts install instructions: https://www.macports.org/install.php
     fi
 
     # Install Docker
-    
+
     if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
-        if command -v port > /dev/null; then
+        if command -v port >/dev/null; then
             sudo port selfupdate
             sudo port install colima docker
         else
@@ -45,18 +45,18 @@ MacPorts install instructions: https://www.macports.org/install.php
 
     # Install Utilities
 
-    if command -v port > /dev/null; then
+    if command -v port >/dev/null; then
         for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
-            command -v "${utility}" > /dev/null || sudo port install "${utility}"
+            command -v "${utility}" >/dev/null || sudo port install "${utility}"
         done
     else
         for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
-            command -v "${utility}" > /dev/null || brew install "${utility}"
-        done 
+            command -v "${utility}" >/dev/null || brew install "${utility}"
+        done
     fi
     ;;
 Linux)
-    sudo apt update 
+    sudo apt update
     sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck shfmt
     # script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
     sudo "${script_root}/Install-Docker"

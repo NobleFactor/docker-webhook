@@ -188,7 +188,7 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 
 format: ## Format shell scripts in-place using shfmt (4-space indent)
 	@echo "==> Formatting shell scripts with shfmt"
-	@shell_scripts=$$(find bin test webhook.config.example -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\\b' {} + 2>/dev/null || true);
+	@shell_scripts=$$(find bin test webhook.config -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true);
 	@if [[ -n "$$shell_scripts" ]]; then
 		@shfmt -w -i 4 $$shell_scripts || { echo "shfmt failed"; exit 1; }
 	else

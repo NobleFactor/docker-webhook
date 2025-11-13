@@ -25,25 +25,25 @@ declare wait_seconds=2
 
 while :; do
     case $1 in
-        -h|--help)
-            usage "$synopsis"; # does not return
-            shift 1
-            ;;
-        --keep)
-            keep=true
-            shift 1
-            ;;
-        --wait)
-            wait_seconds="$2"
-            shift 2
-            ;;
-        --)
-            shift 1
-            break
-            ;;
-        *)
-            error 1 "Unrecognized option: $1"
-            ;;
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    --keep)
+        keep=true
+        shift 1
+        ;;
+    --wait)
+        wait_seconds="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
     esac
 done
 
@@ -69,7 +69,7 @@ logfile="$(dirname "$0")/artifacts/docker-logs-${timestamp}.log"
 
 # Use Make targets exclusively to generate and start the webhook image/container.
 echo "[sanity] Running: make clean New-Webhook (output appended to $logfile)"
-printf '\n=== make clean New-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >> "$logfile"
+printf '\n=== make clean New-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
 make clean New-Webhook 2>&1 | tee -a "$logfile"
 rc=${PIPESTATUS[0]:-0}
 if [[ "$rc" -ne 0 ]]; then
@@ -78,7 +78,7 @@ if [[ "$rc" -ne 0 ]]; then
 fi
 
 echo "[sanity] Running: make Start-Webhook (output appended to $logfile)"
-printf '\n=== make Start-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >> "$logfile"
+printf '\n=== make Start-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
 make Start-Webhook 2>&1 | tee -a "$logfile"
 rc=${PIPESTATUS[0]:-0}
 if [[ "$rc" -ne 0 ]]; then
@@ -102,10 +102,10 @@ echo "[sanity] Waiting up to ${wait_seconds}s (polling) for service to initializ
 end_time=$((SECONDS + wait_seconds))
 logs=''
 
-while (( SECONDS <= end_time )); do
+while ((SECONDS <= end_time)); do
     logs=$(docker logs --tail 2000 "$container_name" 2>&1 || true)
     printf '%s
-' "$logs" > "$logfile"
+' "$logs" >"$logfile"
     # Quick checks for success markers
     if printf '%s' "$logs" | grep -iq "serving hooks"; then
         echo "[sanity] SUCCESS: webhook started and serving hooks detected in logs."
@@ -113,7 +113,7 @@ while (( SECONDS <= end_time )); do
         # cleanup only when not asked to keep artifacts
         if [[ "${keep:-false}" != true ]]; then
             echo "[sanity] Running: make clean (output appended to $logfile)"
-            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >> "$logfile"
+            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
             make clean 2>&1 | tee -a "$logfile" || true
         else
             echo "[sanity] --keep specified; leaving container and artifacts in place: $container_name, $logfile"
@@ -124,7 +124,7 @@ while (( SECONDS <= end_time )); do
         echo "[sanity] INFO: webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
         if [[ "${keep:-false}" != true ]]; then
             echo "[sanity] Running: make clean (output appended to $logfile)"
-            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >> "$logfile"
+            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
             make clean 2>&1 | tee -a "$logfile" || true
         else
             echo "[sanity] --keep specified; leaving container and artifacts in place: $container_name, $logfile"
@@ -142,7 +142,7 @@ echo
 echo "[sanity] Capturing final logs (last 2000 lines) to $logfile:"
 logs=$(docker logs --tail 2000 "$container_name" 2>&1 || true)
 printf '%s
-' "$logs" > "$logfile"
+' "$logs" >"$logfile"
 printf '%s
 ' "$logs"
 

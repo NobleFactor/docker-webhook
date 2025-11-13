@@ -30,21 +30,21 @@ eval set -- "$script_arguments"
 
 while :; do
     case "$1" in
-        -h|--help)
-            usage "Test-HomebridgeLocationGeneration [--test-location <location>] [--help]"; # does not return
-            shift 1
-            ;;
-        --test-location)
-            declare -r test_location="$2"
-            shift 2
-            ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            break
-            ;;
+    -h | --help)
+        usage "Test-HomebridgeLocationGeneration [--test-location <location>] [--help]" # does not return
+        shift 1
+        ;;
+    --test-location)
+        declare -r test_location="$2"
+        shift 2
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        break
+        ;;
     esac
     [[ $# -eq 0 ]] && break
 done
@@ -212,7 +212,7 @@ fi
 
 # Remove generated artifacts if all tests passed
 
-if (( passed_tests == total_tests )); then
+if ((passed_tests == total_tests)); then
     echo >&2 && success "${passed_tests}/${total_tests} tests passed. Cleaning up generated artifacts."
     rm --verbose -rf "$generated_certificates_dir" "$generated_compose_file" "$generated_env_file"
 else

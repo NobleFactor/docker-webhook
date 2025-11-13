@@ -22,17 +22,17 @@ eval set -- "$script_arguments"
 
 while :; do
     case "$1" in
-        -h|--help)
-            usage "$synopsis"
-            shift 1
-            ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            break
-            ;;
+    -h | --help)
+        usage "$synopsis"
+        shift 1
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        break
+        ;;
     esac
     [[ $# -eq 0 ]] && break
 done
@@ -54,12 +54,12 @@ sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-buildx-p
 declare -r product=$(sudo lshw -json | jq -r '.product')
 
 case $product in
-    ODROID-C[45]*)
-        ### Reference: https://sipfront.com/blog/2024/01/running-docker-on-odroid-c4/#:~:text=Fixing%20it%20by%20modifying%20the,media/boot/boot.ini
-        declare -r expected_bootargs='^setenv bootargs .*systemd\.unified_cgroup_hierarchy=0.*$'
-        declare -r boot_ini="$(sudo find /media/boot -name boot.ini -type f 2> /dev/null)"
-        if ! grep --count -e "${expected_bootargs}" "${boot_ini}" > /dev/null; then
-            cat 1>&2 <<EOF
+ODROID-C[45]*)
+    ### Reference: https://sipfront.com/blog/2024/01/running-docker-on-odroid-c4/#:~:text=Fixing%20it%20by%20modifying%20the,media/boot/boot.ini
+    declare -r expected_bootargs='^setenv bootargs .*systemd\.unified_cgroup_hierarchy=0.*$'
+    declare -r boot_ini="$(sudo find /media/boot -name boot.ini -type f 2>/dev/null)"
+    if ! grep --count -e "${expected_bootargs}" "${boot_ini}" >/dev/null; then
+        cat 1>&2 <<EOF
 Next steps:
 
 1. Backup ${boot_ini}:
@@ -79,14 +79,13 @@ Next steps:
 5. Execute this command to verify docker:
        sudo docker run hello-world
 EOF
-            exit 0
-        fi
-        ;;
-    Raspberry\ Pi\ 5*)
-        ;;
-    *)
-        echo 1>&2 "Untested product: '${product}'"
-        ;;
+        exit 0
+    fi
+    ;;
+Raspberry\ Pi\ 5*) ;;
+*)
+    echo 1>&2 "Untested product: '${product}'"
+    ;;
 esac
 
 sudo docker run hello-world

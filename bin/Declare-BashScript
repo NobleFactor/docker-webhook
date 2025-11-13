@@ -18,7 +18,7 @@ declare -r script_name="$(basename "$1")"
 declare -r script_long_options="${2:-}"
 declare -r script_options="${3:-}"
 
-shift 3 || shift 2 || shift 1 ;# Shift past the first three arguments to leave only the options for parsing
+shift 3 || shift 2 || shift 1 # Shift past the first three arguments to leave only the options for parsing
 
 ###########
 # Functions
@@ -115,7 +115,7 @@ function error {
     local rc=$1
     shift 1
     printf '[%s] [\033[31m%s\033[0m] %s\n' "$script_name" "$Heavy_ballot" "$@" >&2
-    if (( rc != 0 )); then
+    if ((rc != 0)); then
         exit "$rc"
     fi
 }
@@ -134,10 +134,10 @@ function success {
 
 # useful for printing text to console...
 
-declare -r b="$(tput bold)"  ; # bold
-declare -r n="$(tput sgr0)"  ; # normal
-declare -r u="$(tput smul)"  ; # underline
-declare -r u_="$(tput rmul)" ; # underline off (neither $n nor $b defeat $u)
+declare -r b="$(tput bold)"  # bold
+declare -r n="$(tput sgr0)"  # normal
+declare -r u="$(tput smul)"  # underline
+declare -r u_="$(tput rmul)" # underline off (neither $n nor $b defeat $u)
 
 declare -r Heavy_ballot='✘'
 declare -r Heavy_check_mark='✔'
@@ -148,6 +148,6 @@ declare -r Heavy_check_mark='✔'
 
 declare -r script_arguments=$(getopt -n "${script_name}" -o "$script_options" --long "$script_long_options" -- "$@")
 
-if (( $? != 0 )); then
+if (($? != 0)); then
     error 1 "Unable to parse arguments: $arguments"
 fi
