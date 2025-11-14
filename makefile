@@ -39,6 +39,12 @@ endif
 
 override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 
+### WEBHOOK_EXECUTOR_EXCLUDE, WEBHOOK_KEYVAULT_URL, WEBHOOK_SECRET_NAME
+
+WEBHOOK_EXECUTOR_EXCLUDE ?= false
+WEBHOOK_KEYVAULT_URL :=
+WEBHOOK_SECRET_NAME :=
+
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
 IP_ADDRESS ?=
@@ -263,6 +269,7 @@ New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
 	@sudo docker buildx build \
 		--platform $(PLATFORM) \
+		--build-arg webhook_executor_exclude=$(WEBHOOK_EXECUTOR_EXCLUDE) \
 		--build-arg s6_overlay_version=$(S6_OVERLAY_VERSION) \
 		--build-arg webhook_version=$(WEBHOOK_VERSION) \
 		--build-arg webhook_port=$(WEBHOOK_PORT) \
@@ -299,8 +306,8 @@ Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 ##@ Runtime resource updates
 
 Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
-	mkdir --parent "$(volume_root)/ssh"
-	cp --verbose $(ssh_keys) "$(volume_root)/ssh"
+	@mkdir --parent "$(volume_root)/ssh"
+	@cp --verbose $(ssh_keys) "$(volume_root)/ssh"
 
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
 	@mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
@@ -310,8 +317,8 @@ Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into co
 	@echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
 
 Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and command script into container volume for LOCATION
-	mkdir --parent "$(volume_root)"
-	cp --verbose "$(webhook_hooks)" "$(volume_root)"
+	@mkdir --parent "$(volume_root)"
+	@cp --verbose "$(webhook_hooks)" "$(volume_root)"
 
 ## BUILD RULES
 
@@ -338,7 +345,7 @@ $(container_keys): $(ssh_keys)
 ### webhook hooks
 
 $(webhook_hooks):
-	echo '[]' > $(webhook_hooks)
+	@echo '[]' > $(webhook_hooks)
 
 $(container_hooks):
 	$(MAKE) Update-WebhookHooks

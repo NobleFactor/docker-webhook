@@ -30,9 +30,6 @@ defaults) that influence how images and containers are built and run. Set
 them on the `make` command line or export them into the environment prior
 to invoking make. The most commonly used parameters are listed below.
 .TP
-.B LOCATION
-Geographical/location tag used in compose files, volume layout and hostnames.
-.TP
 .B CONTAINER_DOMAIN_NAME
 Domain used when assembling hostnames; defaults to "localdomain".
 .TP
@@ -52,8 +49,26 @@ network. If absent docker/compose will select an address.
 IP subnet range used when creating macvlan networks. Required for macvlan
 driver; unused for bridge networks.
 .TP
+.B LOCATION
+Geographical/location tag used in compose files, volume layout and hostnames.
+.TP
+.B PLATFORM
+`docker buildx` platform list; default is the host architecture, adjusted to
+common naming (`amd64`/`arm64`). Affects multi-arch builds.
+.TP
 .B S6_OVERLAY_VERSION
 Version of s6-overlay the image installs (used as a build-arg).
+.TP
+.B WEBHOOK_KEYVAULT_URL
+The URL of the Azure Key Vault containing the JWT secret for webhook-executor
+HMAC authentication. Required if webhook-executor is used as execute-command
+in hooks.json.
+.TP
+.B WEBHOOK_EXECUTOR_EXCLUDE
+Set to true to build the webhook image without the webhook-executor program.
+The webhook-executor program allows webhook rules to be executed with HMAC
+authentication using a JWT token stored in an Azure Key Vault. Defaults to
+false (includes webhook-executor).
 .TP
 .B WEBHOOK_PGID
 Primary group id used when adjusting ownership inside the container's volume
@@ -65,12 +80,13 @@ Service port the webhook listens on inside the container (default 9000).
 .B WEBHOOK_PUID
 User id used when adjusting ownership inside the container's volume layout.
 .TP
+.B WEBHOOK_SECRET_NAME
+The name of the secret in the Azure Key Vault that holds the JWT token for
+webhook-executor. Required if webhook-executor is used as execute-command in
+hooks.json.
+.TP
 .B WEBHOOK_VERSION
 Upstream webhook application release/version used as a build-arg.
-.TP
-.B PLATFORM
-`docker buildx` platform list; default is the host architecture, adjusted to
-common naming (`amd64`/`arm64`). Affects multi-arch builds.
 .TP
 .B TAG
 Image tag applied to the built image (default `1.0.0-preview.1`).

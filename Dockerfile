@@ -5,27 +5,45 @@
 
 # Dockerfile for https://github.com/NobleFactor/docker-webhook
 
-## Build
-
 ARG BUILDPLATFORM
-FROM --platform=$BUILDPLATFORM golang:trixie AS build
+FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_build
 
 LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
-WORKDIR /go/src/github.com/noblefactor/webhook
+WORKDIR /go/src/github.com/noblefactor/docker-webhook
 ARG webhook_version=2.8.2
 
 RUN <<EOF
 apt-get update --yes
 apt-get install --no-install-recommends --yes curl
-# use strict curl flags so failures are visible and fail the build early
 curl --fail --show-error --silent --retry 3 --retry-delay 2 --location --output webhook.tar.gz "https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz"
 tar -xzf webhook.tar.gz --strip 1
 go mod download
 CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook
+apt remove --yes curl
 rm -rf /var/lib/apt/lists/*
 EOF
 
-## Runtime
+ARG BUILDPLATFORM
+FROM --platform=$BUILDPLATFORM webhook_build AS webhook_executor_build
+
+WORKDIR /go/src/github.com/noblefactor/docker-webhook
+COPY cmd/webhook-executor ./cmd/webhook-executor
+ARG webhook_executor_exclude=false
+
+# Initialize module and download dependencies (safer: require committed go.mod/go.sum)
+RUN <<'EOF'
+if [[ ${webhook_executor_exclude:-false} != true ]]; then
+    echo "Building webhook-executor..."
+    cd cmd/webhook-executor
+
+    # Use the module in the executor directory (requires go.mod to be committed there).
+    # tidy to populate go.sum if needed, then build statically.
+    go mod tidy
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook-executor ./...
+else
+    echo "Skipping webhook-executor build"
+fi
+EOF
 
 FROM debian:trixie-slim AS runtime
 
@@ -54,7 +72,6 @@ rm -rf /var/lib/apt/lists/*
 EOF
 
 ##### Install s6 overlay
-
 RUN <<EOF
 declare -r arch_archive="s6-overlay-${TARGETARCH/arm64/aarch64}.tar.xz"
 declare -r noarch_archive="s6-overlay-noarch.tar.xz"
@@ -69,9 +86,10 @@ rm -f "/tmp/${arch_archive}" "/tmp/${noarch_archive}"
 apt-get purge --auto-remove --yes xz-utils curl
 EOF
 
-##### Install webhook
+##### Install webhook and (maybe) webhook-executor
 
-COPY --from=build /usr/local/bin/webhook /usr/local/bin/webhook
+COPY --from=webhook_executor_build /usr/local/bin/* /usr/local/bin/
+
 RUN <<EOF
 useradd --system --uid 999 --user-group webhook
 mkdir -p /etc/services.d/webhook/log
