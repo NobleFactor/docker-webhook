@@ -18,15 +18,15 @@ The script requires
 to be installed for base64 encoding and HMAC computation.
 .SH OPTIONS
 .TP
-.BR \-s ", " \-\-secret " \fIsecret\fR"
-The shared secret key used for HMAC signing. This option is required and
-cannot be empty.
+.BR \-s ", " \-\-secret " \fIsecret\fR (default: randomly generated 128-byte hex string)"
+The shared secret key used for HMAC signing. If not specified, a random
+128-byte secret is generated using openssl.
 .TP
-.BR \-p ", " \-\-payload " \fIjson\fR"
+.BR \-p ", " \-\-payload " \fIjson\fR (default: {\"iat\":<current Unix timestamp>})"
 The JSON payload to include in the JWT. If not specified, defaults to
 \fB{"iat":<current Unix timestamp>}\fR.
 .TP
-.BR \-a ", " \-\-algorithm " \fIHS1|HS256|HS512\fR"
+.BR \-a ", " \-\-algorithm " \fIHS1|HS256|HS512\fR (default: HS512)"
 The HMAC algorithm to use for signing. Supported values are \fBHS1\fR
 (SHA-1), \fBHS256\fR (SHA-256), or \fBHS512\fR (SHA-512). Defaults to
 \fBHS512\fR if not specified.
