@@ -18,7 +18,7 @@ Desktop.ini
 # Directory reserved for docker bind mounts
 /volumes/
 
-# Container configuration; generated except for hooks.json, whitelist, and command files. Represents a deployment.
+# Container configuration; generated except for hooks.json and command files. Represents a deployment.
 /webhook.config/
 
 # Generated environment files
