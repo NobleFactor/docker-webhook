@@ -42,8 +42,10 @@ override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 ### WEBHOOK_EXECUTOR_EXCLUDE, WEBHOOK_KEYVAULT_URL, WEBHOOK_SECRET_NAME
 
 WEBHOOK_EXECUTOR_EXCLUDE ?= false
-WEBHOOK_KEYVAULT_URL :=
-WEBHOOK_SECRET_NAME :=
+WEBHOOK_JWT_ALGORITHM    ?= HS512
+WEBHOOK_JWT_PAYLOAD      ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+1 hour" +%s)}
+WEBHOOK_KEYVAULT_URL     ?=
+WEBHOOK_SECRET_NAME      ?=
 
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
@@ -164,16 +166,16 @@ docker_compose := sudo \
     LOCATION="$(LOCATION)" \
     CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
     CONTAINER_DOMAIN_NAME="$(CONTAINER_DOMAIN_NAME)" \
+    NETWORK_NAME="$(network_name)" \
     WEBHOOK_IMAGE="${IMAGE}" \
     WEBHOOK_PORT="$(WEBHOOK_PORT)" \
 	WEBHOOK_PUID="${WEBHOOK_PUID}" \
 	WEBHOOK_PGID="${WEBHOOK_PGID}" \
-    NETWORK_NAME="$(network_name)" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
 
-.PHONY: help help-short help-full clean format test Get-WebhookStatus New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates
+.PHONY: help help-short help-full clean format test Get-WebhookStatus New-WebhookLocation New-Webhook New-WebhookContainer New-WebhookImage Restart-Webhook Start-Webhook Start-WebhookShell Stop-Webhook New-WebhookCertificates Update-WebhookCertificates Update-WebhookHooksEnv
 
 ##@ Help
 help: help-short ## Show brief help (alias: help-short)
@@ -265,6 +267,48 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
+New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
+	@echo "==> Generating JWT token and saving to Azure Key Vault"
+	if [[ -z "$(WEBHOOK_JWT_ALGORITHM)" ]]; then
+		echo "Error: WEBHOOK_JWT_ALGORITHM is required"
+		exit 1
+	fi
+	if [[ -z "$(WEBHOOK_JWT_PAYLOAD)" ]]; then
+		echo "Error: WEBHOOK_JWT_PAYLOAD is required"
+		exit 1
+	fi
+	if [[ -z "$(WEBHOOK_KEYVAULT_URL)" ]]; then
+		echo "Error: WEBHOOK_KEYVAULT_URL is required"
+		exit 1
+	fi
+	if [[ -z "$(WEBHOOK_SECRET_NAME)" ]]; then
+		echo "Error: WEBHOOK_SECRET_NAME is required"
+		exit 1
+	fi
+	secret=$$(openssl rand -hex 128)
+	vault_name=$$(echo "$(WEBHOOK_KEYVAULT_URL)" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
+	jwt=$$(bin/New-JwtToken --secret "$$secret" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)")
+	echo "Generated JWT: $$jwt"
+	az keyvault secret set --vault-name "$$vault_name" --name "$(WEBHOOK_SECRET_NAME)" --value "$$jwt"
+	@echo "==> Updating webhook.config/$(LOCATION)/hooks.env"
+	mkdir -p "webhook.config/$(LOCATION)"
+	hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	if [[ -f "$$hooks_env" ]]; then
+		if grep -q "^WEBHOOK_KEYVAULT_URL=" "$$hooks_env"; then
+			sed -i "s|^WEBHOOK_KEYVAULT_URL=.*|WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)|" "$$hooks_env"
+		else
+			echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" >> "$$hooks_env"
+		fi
+		if grep -q "^WEBHOOK_SECRET_NAME=" "$$hooks_env"; then
+			sed -i "s|^WEBHOOK_SECRET_NAME=.*|WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)|" "$$hooks_env"
+		else
+			echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
+		fi
+	else
+		echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" > "$$hooks_env"
+		echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
+	fi
+
 New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
 	@sudo docker buildx build \
@@ -319,6 +363,12 @@ Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into co
 Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and command script into container volume for LOCATION
 	@mkdir --parent "$(volume_root)"
 	@cp --verbose "$(webhook_hooks)" "$(volume_root)"
+
+Update-WebhookHooksEnv: ## Copy hooks.env to webhook volumes
+	@mkdir --parent "$(volume_root)"
+	@cp --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
+	@echo -e "\n\033[1mWhat's next:\033[0m"
+	@echo "    Restart Webhook to load new hooks.env: make Restart-Webhook"
 
 ## BUILD RULES
 
