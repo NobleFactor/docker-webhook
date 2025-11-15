@@ -73,7 +73,9 @@ function install_script_to_local {
     fi
 
     if [[ -f "${script_root}/../share/bash-completion/completions/Declare-BashScript" ]]; then
-        ln -sf "${script_root}/../share/bash-completion/completions/Declare-BashScript" "${declare_dest_bash_completion}"
+        ln -sf \
+            "${script_root}/../share/bash-completion/completions/Declare-BashScript" \
+            "${declare_dest_bash_completion}"
         note "Linked Declare-BashScript bash completion to ${declare_dest_bash_completion}"
     fi
 

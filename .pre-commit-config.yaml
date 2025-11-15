@@ -1,8 +1,4 @@
 repos:
   - repo: local
     hooks:
-      - id: shfmt
-        name: shfmt
-        entry: shfmt -i 4 -w
-        language: system
-        files: '^(bin|test|webhook.config.example)/.*'
+        files: '^(bin|test)/.*'

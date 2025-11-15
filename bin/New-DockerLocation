@@ -8,7 +8,11 @@
 # New-DockerLocation - Generate certificate request and Docker Compose YAML for a location
 # shellcheck source=bin/Declare-BashScript
 
-source "$(dirname "$0")/Declare-BashScript" "$0" "help,role:,location:,country-code:,state-or-province:,city:,organization-name:,organizational-unit:,domain-name:,email-address:,env-file:" "h:l:c:s:C:O:U:D:E:F:" "$@"
+source "$(dirname "$0")/Declare-BashScript" "$0" \
+    "help,role:,location:,country-code:,state-or-province:,city:," \
+    "organization-name:,organizational-unit:,domain-name:,email-address:,env-file:" \
+    "h:l:c:s:C:O:U:D:E:F:" \
+    "$@"
 
 ###########
 # Functions
@@ -16,7 +20,17 @@ source "$(dirname "$0")/Declare-BashScript" "$0" "help,role:,location:,country-c
 
 set_env_from_file() {
 
-    local allowed_vars=(ROLE LOCATION COUNTRY_CODE STATE_OR_PROVINCE CITY ORGANIZATION_NAME ORGANIZATIONAL_UNIT DOMAIN_NAME EMAIL_ADDRESS)
+    local allowed_vars=(
+        ROLE
+        LOCATION
+        COUNTRY_CODE
+        STATE_OR_PROVINCE
+        CITY
+        ORGANIZATION_NAME
+        ORGANIZATIONAL_UNIT
+        DOMAIN_NAME
+        EMAIL_ADDRESS
+    )
     local env_file="$1"
 
     if [[ ! -f "$env_file" ]]; then
@@ -51,7 +65,9 @@ set_env_from_file() {
 # Arguments
 ###########
 
-declare -r synopsis="New-DockerLocation [--env-file <file>] [--role <role> --location <location> --country-code <cc> --state-or-province <state> --city <city> --organization-name <org> --organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
+declare -r synopsis="New-DockerLocation [--env-file <file>] [--role <role> --location <location> " \
+    "--country-code <cc> --state-or-province <state> --city <city> --organization-name <org> " \
+    "--organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
 eval set -- "$script_arguments"
 
 while :; do

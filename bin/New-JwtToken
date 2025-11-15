@@ -59,7 +59,7 @@ while :; do
 done
 
 # Check for openssl
-if ! command -v openssl &> /dev/null; then
+if ! command -v openssl &>/dev/null; then
     error 1 "openssl is required but not found in PATH."
 fi
 
@@ -74,12 +74,12 @@ fi
 
 # Map algorithm to openssl digest
 case "$algorithm" in
-    HS1|hs1|HSSHA1|hmac-sha1) digest="sha1" ;;
-    HS256|hs256|HSHA256|hmac-sha256) digest="sha256" ;;
-    HS512|hs512|HSHA512|hmac-sha512) digest="sha512" ;;
-    *)
-        error 1 "Unsupported algorithm: $algorithm"
-        ;;
+HS1 | hs1 | HSSHA1 | hmac-sha1) digest="sha1" ;;
+HS256 | hs256 | HSHA256 | hmac-sha256) digest="sha256" ;;
+HS512 | hs512 | HSHA512 | hmac-sha512) digest="sha512" ;;
+*)
+    error 1 "Unsupported algorithm: $algorithm"
+    ;;
 esac
 
 ###########
@@ -94,7 +94,7 @@ header_enc=$(echo -n "$header" | base64url)
 payload_enc=$(echo -n "$payload" | base64url)
 
 # Compute signature
-signature=$(printf '%s.%s' "$header_enc" "$payload_enc" | \
+signature=$(printf '%s.%s' "$header_enc" "$payload_enc" |
     openssl dgst -$digest -hmac "$secret" -binary | base64url)
 
 # Output JWT
