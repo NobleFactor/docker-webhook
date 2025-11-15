@@ -18,7 +18,7 @@ source "$(dirname "$0")/Declare-BashScript" "$0" "help,secret:,payload:,algorith
 
 # Base64 URL encode
 base64url() {
-	openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n'
+    openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n'
 }
 
 ###########
@@ -31,36 +31,36 @@ eval set -- "$script_arguments"
 [[ $* != -- ]] || usage "$synopsis"
 
 while :; do
-	case $1 in
-	-h | --help)
-		usage "$synopsis" # does not return
-		shift 1
-		;;
-	-s | --secret)
-		declare -r secret="$2"
-		shift 2
-		;;
-	-p | --payload)
-		declare -r payload="$2"
-		shift 2
-		;;
-	-a | --algorithm)
-		declare -r algorithm="$2"
-		shift 2
-		;;
-	--)
-		shift 1
-		break
-		;;
-	*)
-		error 1 "Unrecognized option: $1"
-		;;
-	esac
+    case $1 in
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    -s | --secret)
+        declare -r secret="$2"
+        shift 2
+        ;;
+    -p | --payload)
+        declare -r payload="$2"
+        shift 2
+        ;;
+    -a | --algorithm)
+        declare -r algorithm="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
 done
 
 # Check for openssl
-if ! command -v openssl &>/dev/null; then
-	error 1 "openssl is required but not found in PATH."
+if ! command -v openssl &> /dev/null; then
+    error 1 "openssl is required but not found in PATH."
 fi
 
 # Set defaults
@@ -69,17 +69,17 @@ declare -r algorithm="${algorithm:-HS512}"
 
 # Fail if secret is empty
 if [[ -z ${secret:-} ]]; then
-	error 1 "secret must not be empty."
+    error 1 "secret must not be empty."
 fi
 
 # Map algorithm to openssl digest
 case "$algorithm" in
-HS1 | hs1 | HSSHA1 | hmac-sha1) digest="sha1" ;;
-HS256 | hs256 | HSHA256 | hmac-sha256) digest="sha256" ;;
-HS512 | hs512 | HSHA512 | hmac-sha512) digest="sha512" ;;
-*)
-	error 1 "Unsupported algorithm: $algorithm"
-	;;
+    HS1|hs1|HSSHA1|hmac-sha1) digest="sha1" ;;
+    HS256|hs256|HSHA256|hmac-sha256) digest="sha256" ;;
+    HS512|hs512|HSHA512|hmac-sha512) digest="sha512" ;;
+    *)
+        error 1 "Unsupported algorithm: $algorithm"
+        ;;
 esac
 
 ###########
@@ -94,8 +94,8 @@ header_enc=$(echo -n "$header" | base64url)
 payload_enc=$(echo -n "$payload" | base64url)
 
 # Compute signature
-signature=$(printf '%s.%s' "$header_enc" "$payload_enc" |
-	openssl dgst -$digest -hmac "$secret" -binary | base64url)
+signature=$(printf '%s.%s' "$header_enc" "$payload_enc" | \
+    openssl dgst -$digest -hmac "$secret" -binary | base64url)
 
 # Output JWT
 echo "$header_enc.$payload_enc.$signature"

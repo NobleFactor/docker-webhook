@@ -16,35 +16,35 @@ source "$(dirname "$0")/Declare-BashScript" "$0" "help,role:,location:,country-c
 
 set_env_from_file() {
 
-	local allowed_vars=(ROLE LOCATION COUNTRY_CODE STATE_OR_PROVINCE CITY ORGANIZATION_NAME ORGANIZATIONAL_UNIT DOMAIN_NAME EMAIL_ADDRESS)
-	local env_file="$1"
+    local allowed_vars=(ROLE LOCATION COUNTRY_CODE STATE_OR_PROVINCE CITY ORGANIZATION_NAME ORGANIZATIONAL_UNIT DOMAIN_NAME EMAIL_ADDRESS)
+    local env_file="$1"
 
-	if [[ ! -f "$env_file" ]]; then
-		error 1 "Environment file not found: $env_file"
-	fi
+    if [[ ! -f "$env_file" ]]; then
+        error 1 "Environment file not found: $env_file"
+    fi
 
-	while IFS='=' read -r key value; do
+    while IFS='=' read -r key value; do
 
-		[[ "$key" =~ ^#.*$ || -z "$key" ]] && continue # Skip comments and empty lines
+        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue # Skip comments and empty lines
 
-		# Remove surrounding quotes from value, but do not eval or run code
-		value="${value%\"}"
-		value="${value#\"}"
-		local recognized=false
+        # Remove surrounding quotes from value, but do not eval or run code
+        value="${value%\"}"
+        value="${value#\"}"
+        local recognized=false
 
-		for var in "${allowed_vars[@]}"; do
-			if [[ "$key" == "$var" ]]; then
-				export "$key"="$value"
-				recognized=true
-				break
-			fi
-		done
+        for var in "${allowed_vars[@]}"; do
+            if [[ "$key" == "$var" ]]; then
+                export "$key"="$value"
+                recognized=true
+                break
+            fi
+        done
 
-		if [[ "$recognized" == false ]]; then
-			note "Unrecognized environment variable in $env_file: $key"
-		fi
+        if [[ "$recognized" == false ]]; then
+            note "Unrecognized environment variable in $env_file: $key"
+        fi
 
-	done <"$env_file"
+    done <"$env_file"
 }
 
 ###########
@@ -55,63 +55,63 @@ declare -r synopsis="New-DockerLocation [--env-file <file>] [--role <role> --loc
 eval set -- "$script_arguments"
 
 while :; do
-	case $1 in
-	-h | --help)
-		usage "${synopsis}"
-		shift 1
-		;;
-	--env-file)
-		env_file="$2"
-		if [[ ! -f "$env_file" ]]; then
-			error 1 "Environment file not found: $env_file"
-		fi
-		set_env_from_file "$env_file"
-		shift 2
-		;;
-	--role)
-		export ROLE="$2"
-		shift 2
-		;;
-	--location)
-		export LOCATION="$2"
-		shift 2
-		;;
-	--country-code)
-		export COUNTRY_CODE="$2"
-		shift 2
-		;;
-	--state-or-province)
-		export STATE_OR_PROVINCE="$2"
-		shift 2
-		;;
-	--city)
-		export CITY="$2"
-		shift 2
-		;;
-	--organization-name)
-		export ORGANIZATION_NAME="$2"
-		shift 2
-		;;
-	--organizational-unit)
-		export ORGANIZATIONAL_UNIT="$2"
-		shift 2
-		;;
-	--domain-name)
-		export DOMAIN_NAME="$2"
-		shift 2
-		;;
-	--email-address)
-		export EMAIL_ADDRESS="$2"
-		shift 2
-		;;
-	--)
-		shift 1
-		break
-		;;
-	*)
-		error 1 "Unrecognized option: $1"
-		;;
-	esac
+    case $1 in
+    -h | --help)
+        usage "${synopsis}"
+        shift 1
+        ;;
+    --env-file)
+        env_file="$2"
+        if [[ ! -f "$env_file" ]]; then
+            error 1 "Environment file not found: $env_file"
+        fi
+        set_env_from_file "$env_file"
+        shift 2
+        ;;
+    --role)
+        export ROLE="$2"
+        shift 2
+        ;;
+    --location)
+        export LOCATION="$2"
+        shift 2
+        ;;
+    --country-code)
+        export COUNTRY_CODE="$2"
+        shift 2
+        ;;
+    --state-or-province)
+        export STATE_OR_PROVINCE="$2"
+        shift 2
+        ;;
+    --city)
+        export CITY="$2"
+        shift 2
+        ;;
+    --organization-name)
+        export ORGANIZATION_NAME="$2"
+        shift 2
+        ;;
+    --organizational-unit)
+        export ORGANIZATIONAL_UNIT="$2"
+        shift 2
+        ;;
+    --domain-name)
+        export DOMAIN_NAME="$2"
+        shift 2
+        ;;
+    --email-address)
+        export EMAIL_ADDRESS="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
 done
 
 ###########

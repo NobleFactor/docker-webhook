@@ -21,19 +21,19 @@ eval set -- "$script_arguments"
 [[ $* != -- ]] || usage "$synopsis"
 
 while :; do
-	case $1 in
-	-h | --help)
-		usage "$synopsis" # does not return
-		shift 1
-		;;
-	--)
-		shift 1
-		break
-		;;
-	*)
-		error 1 "Unrecognized option: $1"
-		;;
-	esac
+    case $1 in
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
 done
 
 ###########
@@ -43,52 +43,52 @@ done
 case "$(uname)" in
 Darwin)
 
-	# Check for package manager
+    # Check for package manager
 
-	if command -v port >/dev/null; then
-		sudo port selfupdate
-	elif command -v brew >/dev/null; then
-		brew update
-	else
-		error 1 "A package manager is required to install prerequisites. Please install HomeBrew or MacPorts.
+    if command -v port >/dev/null; then
+        sudo port selfupdate
+    elif command -v brew >/dev/null; then
+        brew update
+    else
+        error 1 "A package manager is required to install prerequisites. Please install HomeBrew or MacPorts.
 Homebrew install instructions: https://brew.sh/
 MacPorts install instructions: https://www.macports.org/install.php
 "
-	fi
+    fi
 
-	# Install Docker
+    # Install Docker
 
-	if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
-		if command -v port >/dev/null; then
-			sudo port selfupdate
-			sudo port install colima docker
-		else
-			brew update
-			brew install colima docker
-		fi
-		note "Starting the docker daemon with: colima start --cpu 2 --memory 4..."
-		colima start --cpu 2 --memory 4
-		note "Checking the docker runtime..."
-		docker info >/dev/null 2>&1 || error 0 "docker info failed; daemon may be unavailable"
-		docker run --rm hello-world >/dev/null 2>&1 || error 0 "hello-world run failed; skipping verification"
-	fi
+    if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
+        if command -v port >/dev/null; then
+            sudo port selfupdate
+            sudo port install colima docker
+        else
+            brew update
+            brew install colima docker
+        fi
+        note "Starting the docker daemon with: colima start --cpu 2 --memory 4..."
+        colima start --cpu 2 --memory 4
+        note "Checking the docker runtime..."
+        docker info >/dev/null 2>&1 || error 0 "docker info failed; daemon may be unavailable"
+        docker run --rm hello-world >/dev/null 2>&1 || error 0 "hello-world run failed; skipping verification"
+    fi
 
-	# Install Utilities
+    # Install Utilities
 
-	if command -v port >/dev/null; then
-		for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
-			command -v "${utility}" >/dev/null || sudo port install "${utility}"
-		done
-	else
-		for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
-			command -v "${utility}" >/dev/null || brew install "${utility}"
-		done
-	fi
-	;;
+    if command -v port >/dev/null; then
+        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
+            command -v "${utility}" >/dev/null || sudo port install "${utility}"
+        done
+    else
+        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
+            command -v "${utility}" >/dev/null || brew install "${utility}"
+        done
+    fi
+    ;;
 Linux)
-	sudo apt update
-	sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck shfmt
-	# script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
-	sudo "${script_root}/Install-Docker"
-	;;
+    sudo apt update
+    sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck shfmt
+    # script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
+    sudo "${script_root}/Install-Docker"
+    ;;
 esac
