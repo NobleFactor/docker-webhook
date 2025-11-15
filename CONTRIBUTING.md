@@ -137,6 +137,76 @@ git commit -m "feat: add JWT token validation
 - Push your branch: `git push -u origin feature/your-feature-name`
 - Create a PR using GitHub CLI or web interface
 
+## Contributing as an External Contributor
+
+If you don't have write access to this repository, follow these steps to contribute:
+
+### 1. Fork the Repository
+
+- Click the "Fork" button on the repository's GitHub page
+- This creates a copy of the repository under your GitHub account
+
+### 2. Clone Your Fork
+
+```bash
+git clone https://github.com/YOUR_USERNAME/docker-webhook.git
+cd docker-webhook
+```
+
+### 3. Set Up the Upstream Remote
+
+```bash
+git remote add upstream https://github.com/NobleFactor/docker-webhook.git
+git fetch upstream
+```
+
+### 4. Create a Feature Branch
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+### 5. Make Your Changes
+
+- Follow the development workflow in this guide
+- Test your changes thoroughly
+- Ensure code follows project conventions
+
+### 6. Keep Your Branch Updated
+
+```bash
+git fetch upstream
+git rebase upstream/develop
+```
+
+### 7. Push to Your Fork
+
+```bash
+git push origin feature/your-feature-name
+```
+
+### 8. Create a Pull Request
+
+- Go to the original repository on GitHub
+- Click "New Pull Request"
+- Select your fork and branch as the source
+- Fill in the PR template with:
+  - Clear title and description
+  - What changes were made and why
+  - How to test the changes
+  - Any relevant screenshots or context
+
+### 9. Address Review Feedback
+
+- Respond to reviewer comments
+- Make additional commits to your branch if needed
+- The PR will be merged by maintainers once approved
+
+### 10. Clean Up
+
+- After merge, delete your feature branch
+- Keep your fork updated with the main repository
+
 ## Pull Request Process
 
 ### Creating a PR
