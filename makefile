@@ -268,45 +268,49 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
+	@if ! az account show >/dev/null 2>&1; then
+		@echo "Not logged in to Azure. Running az login..."
+		@az login
+	fi
 	@echo "==> Generating JWT token and saving to Azure Key Vault"
-	if [[ -z "$(WEBHOOK_JWT_ALGORITHM)" ]]; then
-		echo "Error: WEBHOOK_JWT_ALGORITHM is required"
-		exit 1
+	@if [[ -z "$(WEBHOOK_JWT_ALGORITHM)" ]]; then
+		@echo "Error: WEBHOOK_JWT_ALGORITHM is required"
+		@exit 1
 	fi
-	if [[ -z "$(WEBHOOK_JWT_PAYLOAD)" ]]; then
-		echo "Error: WEBHOOK_JWT_PAYLOAD is required"
-		exit 1
+	@if [[ -z "$(WEBHOOK_JWT_PAYLOAD)" ]]; then
+		@echo "Error: WEBHOOK_JWT_PAYLOAD is required"
+		@exit 1
 	fi
-	if [[ -z "$(WEBHOOK_KEYVAULT_URL)" ]]; then
-		echo "Error: WEBHOOK_KEYVAULT_URL is required"
-		exit 1
+	@if [[ -z "$(WEBHOOK_KEYVAULT_URL)" ]]; then
+		@echo "Error: WEBHOOK_KEYVAULT_URL is required"
+		@exit 1
 	fi
-	if [[ -z "$(WEBHOOK_SECRET_NAME)" ]]; then
-		echo "Error: WEBHOOK_SECRET_NAME is required"
-		exit 1
+	@if [[ -z "$(WEBHOOK_SECRET_NAME)" ]]; then
+		@echo "Error: WEBHOOK_SECRET_NAME is required"
+		@exit 1
 	fi
-	secret=$$(openssl rand -hex 128)
-	vault_name=$$(echo "$(WEBHOOK_KEYVAULT_URL)" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
-	jwt=$$(bin/New-JwtToken --secret "$$secret" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)")
-	echo "Generated JWT: $$jwt"
-	az keyvault secret set --vault-name "$$vault_name" --name "$(WEBHOOK_SECRET_NAME)" --value "$$jwt"
+	@secret=$$(openssl rand -hex 128)
+	@vault_name=$$(echo "$(WEBHOOK_KEYVAULT_URL)" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
+	@jwt=$$(bin/New-JwtToken --secret "$$secret" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)")
+	@echo "Generated JWT: $$jwt"
+	@az keyvault secret set --vault-name "$$vault_name" --name "$(WEBHOOK_SECRET_NAME)" --value "$$jwt"
 	@echo "==> Updating webhook.config/$(LOCATION)/hooks.env"
-	mkdir -p "webhook.config/$(LOCATION)"
-	hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	@mkdir -p "webhook.config/$(LOCATION)"
+	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
 	if [[ -f "$$hooks_env" ]]; then
 		if grep -q "^WEBHOOK_KEYVAULT_URL=" "$$hooks_env"; then
-			sed -i "s|^WEBHOOK_KEYVAULT_URL=.*|WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)|" "$$hooks_env"
+			@sed -i "s|^WEBHOOK_KEYVAULT_URL=.*|WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)|" "$$hooks_env"
 		else
-			echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" >> "$$hooks_env"
+			@echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" >> "$$hooks_env"
 		fi
 		if grep -q "^WEBHOOK_SECRET_NAME=" "$$hooks_env"; then
-			sed -i "s|^WEBHOOK_SECRET_NAME=.*|WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)|" "$$hooks_env"
+			@sed -i "s|^WEBHOOK_SECRET_NAME=.*|WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)|" "$$hooks_env"
 		else
-			echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
+			@echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
 		fi
 	else
-		echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" > "$$hooks_env"
-		echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
+		@echo "WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" > "$$hooks_env"
+		@echo "WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
 	fi
 
 New-WebhookImage: ## Build the Webhook image only
