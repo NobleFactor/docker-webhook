@@ -73,7 +73,9 @@ function install_script_to_local {
     fi
 
     if [[ -f "${script_root}/../share/bash-completion/completions/Declare-BashScript" ]]; then
-        ln -sf "${script_root}/../share/bash-completion/completions/Declare-BashScript" "${declare_dest_bash_completion}"
+        ln -sf \
+            "${script_root}/../share/bash-completion/completions/Declare-BashScript" \
+            "${declare_dest_bash_completion}"
         note "Linked Declare-BashScript bash completion to ${declare_dest_bash_completion}"
     fi
 
@@ -100,9 +102,9 @@ function usage {
         exit 0
     fi
 
-    # Fallback to a script-relative man path if present
-    if man -M "${script_root}/man" -w "${script_name}" >/dev/null 2>&1; then
-        man -M "${script_root}/man" "${script_name}"
+    # Fallback to share/man relative to script root
+    if man -M "${script_root}/../share/man" -w "${script_name}" >/dev/null 2>&1; then
+        man -M "${script_root}/../share/man" "${script_name}"
         exit 0
     fi
 

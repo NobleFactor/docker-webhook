@@ -9,8 +9,21 @@ ARG BUILDPLATFORM
 FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_build
 
 LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
-WORKDIR /go/src/github.com/noblefactor/docker-webhook
+
+# Build webhook from https://github.com/adnanh/webhook by Adnan Hajdarević
+WORKDIR /go/src/github.com/adnanh/webhook
 ARG webhook_version=2.8.2
+
+# Attribution: This code is from https://github.com/adnanh/webhook by Adnan Hajdarević
+# Directory structure after RUN:
+# /go/src/github.com/adnanh/webhook/
+# ├── go.mod                    # Module definition from adnanh/webhook repo
+# ├── go.sum                    # Dependencies from adnanh/webhook repo
+# ├── main.go                   # Main webhook source file
+# ├── ... (other webhook source files: hooks.go, rules.go, etc.)
+# ├── webhook.tar.gz            # Downloaded tarball (not removed)
+# └── /usr/local/bin/
+#     └── webhook               # Built webhook binary
 
 RUN <<EOF
 apt-get update --yes
@@ -24,22 +37,39 @@ rm -rf /var/lib/apt/lists/*
 EOF
 
 ARG BUILDPLATFORM
-FROM --platform=$BUILDPLATFORM webhook_build AS webhook_executor_build
+FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_executor_build
+
+LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
 
 WORKDIR /go/src/github.com/noblefactor/docker-webhook
-COPY cmd/webhook-executor ./cmd/webhook-executor
+COPY go.mod src ./
 ARG webhook_executor_exclude=false
+
+# Attribution: This code is from https://github.com/NobleFactor/docker-webhook by David Noble
+# Directory structure after COPY:
+# /go/src/github.com/noblefactor/docker-webhook/
+# ├── go.mod                    # Our module definition
+# ├── go.sum                    # Our module dependencies (generated later)
+# ├── internal/                 # Our internal packages (from src/internal/)
+# │   ├── azure/
+# │   │   └── keyvault.go       # Azure Key Vault functions
+# │   └── jwt/
+# │       └── jwt.go            # JWT validation functions
+# └── cmd/                      # Our source directory (from src/cmd/)
+#     └── webhook-executor/
+#         └── main.go           # Main Go file for webhook-executor
+
+SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
 
 # Initialize module and download dependencies (safer: require committed go.mod/go.sum)
 RUN <<'EOF'
 if [[ ${webhook_executor_exclude:-false} != true ]]; then
     echo "Building webhook-executor..."
-    cd cmd/webhook-executor
 
-    # Use the module in the executor directory (requires go.mod to be committed there).
-    # tidy to populate go.sum if needed, then build statically.
+    # Build the executor from the module root.
+    cd cmd/webhook-executor
     go mod tidy
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook-executor ./...
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook-executor .
 else
     echo "Skipping webhook-executor build"
 fi
@@ -88,7 +118,8 @@ EOF
 
 ##### Install webhook and (maybe) webhook-executor
 
-COPY --from=webhook_executor_build /usr/local/bin/* /usr/local/bin/
+COPY --from=webhook_build /usr/local/bin/webhook /usr/local/bin/webhook
+COPY --from=webhook_executor_build /usr/local/bin/webhook-executor /usr/local/bin/webhook-executor
 
 RUN <<EOF
 useradd --system --uid 999 --user-group webhook

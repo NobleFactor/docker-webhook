@@ -17,16 +17,14 @@ jobs:
       - name: Install Go (to get shfmt)
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.21'
 
       - name: Install shfmt
         run: |
           GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@latest
           echo "$HOME/go/bin" >> $GITHUB_PATH
 
-      - name: Run shfmt check
-        run: |
-          shell_scripts=$(find bin test webhook.config.example -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\\b' {} + 2>/dev/null || true)
+          shell_scripts=$(find bin test -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\\b' {} \; 2>/dev/null || true)
           if [[ -n "$shell_scripts" ]]; then
             shfmt -d -i 4 $shell_scripts || (echo "shfmt detected formatting issues. Run 'make fmt' locally." && exit 1)
           else

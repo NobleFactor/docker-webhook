@@ -6,9 +6,39 @@
 ########################################################################################################################
 
 # Install-Dependencies - Install required dependencies for docker-webhook
-
 # shellcheck source=bin/Declare-BashScript
-source "$(dirname "$0")/Declare-BashScript" "$0" "" "" "$@"
+
+# Documentation is in the accompanying manual page: Install-Dependencies(1).
+source "$(dirname "$0")/Declare-BashScript" "$0" "help" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Install-Dependencies [--help]"
+eval set -- "$script_arguments"
+
+[[ $* != -- ]] || usage "$synopsis"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+###########
+# Main
+###########
 
 case "$(uname)" in
 Darwin)
