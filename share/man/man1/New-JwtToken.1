@@ -44,9 +44,9 @@ Generate a JWT with custom payload and HS256 algorithm:
 New-JwtToken --secret "mySharedSecret" --payload '{"user":"john","role":"admin"}' --algorithm HS256
 .fi
 .TP
-Generate a JWT with a securely generated 64-byte secret key:
+Generate a JWT with a securely generated 128-byte secret key:
 .nf
-New-JwtToken --secret "$(openssl rand -hex 64)" --payload '{"user":"test"}' --algorithm HS512
+New-JwtToken --secret "$(openssl rand -hex 128)" --payload '{"user":"test"}' --algorithm HS512
 .fi
 .SH EXIT STATUS
 The script exits with status 0 on success, or 1 on error (e.g., missing
