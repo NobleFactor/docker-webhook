@@ -12,6 +12,10 @@
 
 source "$(dirname "$0")/Declare-BashScript" "$0" "help,secret:,payload:,algorithm:" "hspa" "$@"
 
+if ! command -v openssl &>/dev/null; then
+    error 1 "openssl is required but not found in PATH."
+fi
+
 ###########
 # Functions
 ###########
@@ -36,16 +40,16 @@ while :; do
         usage "$synopsis" # does not return
         shift 1
         ;;
-    -s | --secret)
-        declare -r secret="$2"
+    -a | --algorithm)
+        declare -r algorithm="$2"
         shift 2
         ;;
     -p | --payload)
         declare -r payload="$2"
         shift 2
         ;;
-    -a | --algorithm)
-        declare -r algorithm="$2"
+    -s | --secret)
+        declare -r secret="$2"
         shift 2
         ;;
     --)
@@ -58,21 +62,16 @@ while :; do
     esac
 done
 
-# Check for openssl
-if ! command -v openssl &>/dev/null; then
-    error 1 "openssl is required but not found in PATH."
-fi
+[[ -n ${algorithm} ]] || declare -r algorithm="${algorithm:-HS512}"
+[[ -n ${payload} ]]   || declare -r payload="${payload:-{\"iat\":$(date +%s)}}"
+[[ -n ${secret:-} ]]  || declare -r secret=$(openssl rand -hex 128)
 
-# Set defaults
-declare -r payload="${payload:-{\"iat\":$(date +%s)}}"
-declare -r algorithm="${algorithm:-HS512}"
-
-# Fail if secret is empty
-if [[ -z ${secret:-} ]]; then
-    error 1 "secret must not be empty."
-fi
+###########
+# Main
+###########
 
 # Map algorithm to openssl digest
+
 case "$algorithm" in
 HS1 | hs1 | HSSHA1 | hmac-sha1) digest="sha1" ;;
 HS256 | hs256 | HSHA256 | hmac-sha256) digest="sha256" ;;
@@ -82,20 +81,11 @@ HS512 | hs512 | HSHA512 | hmac-sha512) digest="sha512" ;;
     ;;
 esac
 
-###########
-# Main
-###########
-
-# Header
 header="{\"alg\":\"$algorithm\",\"typ\":\"JWT\"}"
 
-# Encode header and payload
-header_enc=$(echo -n "$header" | base64url)
-payload_enc=$(echo -n "$payload" | base64url)
+encoded_header=$(echo -n "$header" | base64url)
+encoded_payload=$(echo -n "$payload" | base64url)
 
-# Compute signature
-signature=$(printf '%s.%s' "$header_enc" "$payload_enc" |
-    openssl dgst -$digest -hmac "$secret" -binary | base64url)
+signature=$(printf '%s.%s' "$encoded_header" "$encoded_payload" | openssl dgst -$digest -hmac "$secret" -binary | base64url)
 
-# Output JWT
-echo "$header_enc.$payload_enc.$signature"
+echo "$encoded_header.$encoded_payload.$signature"
