@@ -1,0 +1,59 @@
+.TH New-JwtToken 1 "November 2025" "New-JwtToken" "bin"
+.SH NAME
+New-JwtToken \- generate an HMAC-signed JWT from the command line
+.SH SYNOPSIS
+.B New-JwtToken
+[\fB\-\-secret\fR \fIsecret\fR]
+[\fB\-\-payload\fR \fIjson\fR]
+[\fB\-\-algorithm\fR \fIHS1|HS256|HS512\fR]
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B New-JwtToken
+generates a JSON Web Token (JWT) signed with an HMAC algorithm using the
+provided shared secret. The token consists of a header, payload, and
+signature, all base64url-encoded and separated by dots.
+.PP
+The script requires
+.BR openssl (1)
+to be installed for base64 encoding and HMAC computation.
+.SH OPTIONS
+.TP
+.BR \-s ", " \-\-secret " \fIsecret\fR"
+The shared secret key used for HMAC signing. This option is required and
+cannot be empty.
+.TP
+.BR \-p ", " \-\-payload " \fIjson\fR"
+The JSON payload to include in the JWT. If not specified, defaults to
+\fB{"iat":<current Unix timestamp>}\fR.
+.TP
+.BR \-a ", " \-\-algorithm " \fIHS1|HS256|HS512\fR"
+The HMAC algorithm to use for signing. Supported values are \fBHS1\fR
+(SHA-1), \fBHS256\fR (SHA-256), or \fBHS512\fR (SHA-512). Defaults to
+\fBHS512\fR if not specified.
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXAMPLES
+Generate a JWT with default payload and algorithm:
+.nf
+New-JwtToken --secret "mySharedSecret"
+.fi
+.TP
+Generate a JWT with custom payload and HS256 algorithm:
+.nf
+New-JwtToken --secret "mySharedSecret" --payload '{"user":"john","role":"admin"}' --algorithm HS256
+.fi
+.TP
+Generate a JWT with a securely generated 64-byte secret key:
+.nf
+New-JwtToken --secret "$(openssl rand -hex 64)" --payload '{"user":"test"}' --algorithm HS512
+.fi
+.SH EXIT STATUS
+The script exits with status 0 on success, or 1 on error (e.g., missing
+required arguments, unsupported algorithm, or missing openssl).
+.SH SEE ALSO
+.BR openssl (1),
+.BR jwt (1)
+(if available)
+.SH AUTHOR
+Noble Factor
