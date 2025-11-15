@@ -1,104 +1,314 @@
 
-# Dockerized Webhook (Fork)
+# Docker Webhook
 
-**This repository is a fork of [adnanh/webhook](https://github.com/adnanh/webhook/) and [almir/webhook Docker image](https://hub.docker.com/r/almir/webhook/).**
+Deploy secure, containerized webhook services that execute commands in response to HTTP requests. This project provides production-ready Docker images with built-in authentication, configuration management, and deployment tooling to get your webhook infrastructure running quickly and reliably.
 
-## About This Fork
+## Deployment Overview
 
-This fork was created to customize, extend, or maintain the original webhook Docker image for NobleFactor's needs. If you are looking for the original project, see [adnanh/webhook](https://github.com/adnanh/webhook/) and [almir/webhook](https://hub.docker.com/r/almir/webhook/).
+The `webhook.config/` directory contains your deployment configuration:
 
-**Changes from upstream:**
-This fork contains a number of Noble Factor-specific improvements, tooling, and developer ergonomics on top of the upstream project:
+- **`hooks.json`**: Defines webhook rules and command execution logic
+- **`hooks.env`**: Environment variables for webhook configuration
+- **`command/`**: Custom scripts executed by webhooks
+- **`ssl-certificates/`**: TLS certificates for HTTPS
+- **`ssh/`**: SSH keys for secure operations
 
-- Tracked runtime PID-1 init wrapper: `scripts/noblefactor.init` — this is copied into the image at build time and performs UID/GID adjustment, chown of mounted volumes, and then execs the s6 overlay `/init`.
-- Runtime service management via s6-overlay and execlineb — the `Dockerfile` extracts and installs s6/execline packages into `/package/admin` and exposes helper symlinks in `/command`.
-- A repeatable runtime sanity test: `test/Test-DockerWebhookSanity` — a small script to start the image, wait for initialization, capture logs, inspect `/init` and s6 layout, and optionally keep the container for debugging.
-- Man pages and shell completions under `share/man` and `share/completions` for developer tooling (e.g., `Test-DockerWebhookSanity`, `Declare-BashScript`, and other helper scripts).
-- CI Quality Gate workflow: `.github/workflows/quality-gate.yml` runs Dockerfile and manpage/spell checks on pushes/PRs.
-- Dockerfile and build improvements to avoid linter parser issues (heredoc -> printf-based RUN blocks) and to make the init wrapper tracked and testable.
+### Deployment Workflow
 
-If you'd like a short summary of what exactly changed in code (files/commits), run `git log --name-only feature/debian-s6-overlay-param-port..HEAD` or open the branch's PR.
+1. **Generate Location**: Run `make New-WebhookLocation` to create compose files and certificates
+2. **Configure Hooks**: Create `webhook.config/$(LOCATION)/hooks.json` with your webhook rules
+3. **Set Environment**: Define location-specific settings in `webhook-$(LOCATION).env`
+4. **Build Container**: Execute `make New-WebhookContainer` to prepare the deployment
+5. **Start Service**: Use `make Start-Webhook` to launch the webhook service
 
----
+For secure deployments with JWT authentication:
 
-## Getting Started
+1. Generate JWT token: `make New-WebhookExecutorToken`
+2. Configure Azure Key Vault access
+3. Deploy with authentication enabled
 
-### Running webhook in Docker
+## Features
 
-You can run the webhook server using Docker. The simplest usage is to host your hooks JSON file on your machine and mount the directory as a volume:
+- **HTTP Webhook Server**: Receive and process webhook requests with configurable rules
+- **Command Execution**: Run shell commands or scripts in response to webhooks
+- **HMAC Authentication**: Secure webhook validation using JWT tokens stored in Azure Key Vault
+- **Docker Ready**: Pre-built images with s6-overlay for reliable container lifecycle management
+- **Hot Reload**: Automatically reload hook configurations without restarting
+- **TLS Support**: Optional HTTPS with custom certificates
+- **JSON Configuration**: Define webhook rules in JSON format
+- **Multi-Platform**: Supports AMD64 and ARM64 architectures
+- **Deployment Tooling**: Makefile targets for complete deployment lifecycle management
 
-```shell
-docker run -d -p 9000:9000 -v /path/to/hooks:/etc/webhook --name=webhook \
-  noblefactor/docker-webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
+## Quick Start
+
+Deploy a webhook service in seconds:
+
+```bash
+# Run with default configuration
+docker run -d -p 9000:9000 --name webhook noblefactor/docker-webhook
+
+# Access the service
+curl http://localhost:9000/hooks/my-hook
 ```
 
-Replace `/path/to/hooks` with the path to your hooks file.
+For a more complete setup with custom hooks:
 
-### Building Your Own Image
+```bash
+# Create a hooks configuration
+cat > hooks.json << 'EOF'
+[
+  {
+    "id": "hello",
+    "execute-command": "/bin/echo",
+    "command-working-directory": "/",
+    "pass-arguments-to-command": [
+      {"source": "string", "name": "Hello World!"}
+    ]
+  }
+]
+EOF
 
-You can build your own Docker image using this fork:
-
-```docker
-FROM noblefactor/docker-webhook
-COPY hooks.json.example /etc/webhook/hooks.json
+# Run with mounted configuration
+docker run -d -p 9000:9000 \
+  -v $(pwd)/hooks.json:/etc/webhook/hooks.json \
+  --name webhook \
+  noblefactor/docker-webhook \
+  -hooks=/etc/webhook/hooks.json \
+  -verbose
 ```
 
-Place your `Dockerfile` and `hooks.json.example` in the same directory, then build and run:
+## Configuration
 
-```shell
-docker build -t my-webhook-image .
-docker run -d -p 9000:9000 --name=webhook my-webhook-image -verbose -hooks=/etc/webhook/hooks.json -hotreload
+### Hook Configuration
+
+Webhooks are defined in a JSON file (typically `hooks.json`). Each hook specifies:
+
+- **id**: Unique identifier for the hook
+- **execute-command**: Command to run when triggered
+- **trigger-rule**: Conditions for triggering (method, headers, payload)
+- **pass-arguments-to-command**: How to pass request data to the command
+
+Example `hooks.json`:
+
+```json
+[
+  {
+    "id": "deploy",
+    "execute-command": "/usr/local/bin/deploy.sh",
+    "command-working-directory": "/app",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "production",
+        "parameter": {
+          "source": "payload",
+          "name": "environment"
+        }
+      }
+    },
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "branch"
+      }
+    ]
+  }
+]
 ```
 
-Developer note: the repository build now copies `scripts/noblefactor.init` into the image and installs s6-overlay files. If you are building locally and want to run the runtime sanity test, see "Runtime sanity test" below.
+### Environment Variables
 
-### Customizing Entrypoint
+- `WEBHOOK_PORT`: Port to listen on (default: 9000)
+- `WEBHOOK_TLS_CERT`: Path to TLS certificate file
+- `WEBHOOK_TLS_KEY`: Path to TLS private key file
 
-You can specify parameters in your `Dockerfile` using the `CMD` instruction:
+### Command Line Options
 
-```docker
-FROM noblefactor/docker-webhook
-COPY hooks.json.example /etc/webhook/hooks.json
-CMD ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
+- `-hooks`: Path to hooks JSON file
+- `-hotreload`: Reload hooks on file change
+- `-verbose`: Enable verbose logging
+- `-port`: Override default port
+
+## Deployment
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  webhook:
+    image: noblefactor/docker-webhook:latest
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./hooks.json:/etc/webhook/hooks.json:ro
+      - ./scripts:/app/scripts:ro
+    environment:
+      - WEBHOOK_PORT=9000
+    restart: unless-stopped
 ```
 
-After building, you can run the container without extra arguments:
+### Kubernetes
 
-```shell
-docker run -d -p 9000:9000 --name=webhook my-webhook-image
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook
+  template:
+    metadata:
+      labels:
+        app: webhook
+    spec:
+      containers:
+      - name: webhook
+        image: noblefactor/docker-webhook:latest
+        ports:
+        - containerPort: 9000
+        volumeMounts:
+        - name: hooks-config
+          mountPath: /etc/webhook
+        env:
+        - name: WEBHOOK_PORT
+          value: "9000"
+      volumes:
+      - name: hooks-config
+        configMap:
+          name: webhook-hooks
 ```
 
----
+### Security: JWT Authentication
+
+For secure webhook validation, use HMAC with JWT tokens:
+
+1. Generate a JWT token:
+
+   ```bash
+   docker run --rm noblefactor/docker-webhook /bin/New-JwtToken --secret "your-secret" --algorithm HS512
+   ```
+
+2. Store the token in Azure Key Vault
+
+3. Configure hooks with HMAC validation:
+
+   ```json
+   {
+     "id": "secure-hook",
+     "execute-command": "/bin/echo",
+     "trigger-rule-mismatch-http-response-code": 401,
+     "trigger-rule": {
+       "and": [
+         {
+           "match": {
+             "type": "value",
+             "value": "your-expected-value",
+             "parameter": {
+               "source": "header",
+               "name": "X-Hub-Signature-256"
+             }
+           }
+         }
+       ]
+     }
+   }
+   ```
+
+## Examples
+
+### GitHub Webhook
+
+Trigger deployments on push events:
+
+```json
+[
+  {
+    "id": "github-deploy",
+    "execute-command": "/app/deploy.sh",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "refs/heads/main",
+        "parameter": {
+          "source": "payload",
+          "name": "ref"
+        }
+      }
+    },
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "after"
+      }
+    ]
+  }
+]
+```
+
+### Slack Integration
+
+Respond to Slack slash commands:
+
+```json
+[
+  {
+    "id": "slack-command",
+    "execute-command": "/app/slack-handler.sh",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "/mycommand",
+        "parameter": {
+          "source": "payload",
+          "name": "command"
+        }
+      }
+    }
+  }
+]
+```
+
+## Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/NobleFactor/docker-webhook.git
+cd docker-webhook
+
+# Build the image
+make New-WebhookImage
+
+# Run tests
+make test
+```
 
 ## Contributing
 
-Feel free to open issues or pull requests for improvements or fixes. For major changes, please discuss them first.
+Contributions are welcome! Please:
 
-## Runtime sanity test
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-We include a small smoke test script to help validate that a built image starts correctly and that s6 init is present.
+For major changes, please open an issue first to discuss the proposed changes.
 
-Usage (from the repository root):
+## Prior Art and Attribution
 
-```shell
-# make the test executable (if needed)
-chmod +x test/Test-DockerWebhookSanity
+This project is a fork and extension of:
 
-# run the quick sanity check (waits 2s by default)
-./test/Test-DockerWebhookSanity --wait 2
+- **adnanh/webhook**: The core webhook server implementation by Adnan Hajdarević. Licensed under Apache 2.0. Source: [https://github.com/adnanh/webhook](https://github.com/adnanh/webhook)
+- **almir/webhook**: The original Docker image by Almir Sarajčić. Source: [https://hub.docker.com/r/almir/webhook/](https://hub.docker.com/r/almir/webhook/)
 
-# keep the container running for interactive inspection
-./test/Test-DockerWebhookSanity --keep --wait 5
-```
-
-Notes:
-
-- The test by default uses the image `noblefactor/webhook:1.0.0-preview.1`. Pass an `image:tag` positional argument to test a different image.
-
-- The test will report success if it sees startup markers in the container logs (for example a version line and the "serving hooks" message). Missing hooks.json or TLS certs is expected for a plain smoke test and will not cause a failure if the server starts.
-
-If you'd like, I can add a `make test-sanity` target or a GitHub Actions job that exercises the built image in CI.
+This fork adds Noble Factor-specific improvements including s6-overlay for process management, Azure Key Vault integration for JWT-based HMAC authentication, and enhanced tooling for development and deployment.
 
 ## License
 
-This project inherits its license from the upstream repositories. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+The core webhook functionality is from [adnanh/webhook](https://github.com/adnanh/webhook/) (Apache 2.0 License).
