@@ -103,7 +103,7 @@ EOF
 
 ##### Install s6 overlay
 RUN <<EOF
-declare -r arch_archive="s6-overlay-${TARGETARCH/arm64/aarch64}.tar.xz"
+declare -r arch_archive="s6-overlay-$(echo "${TARGETARCH}" | awk '{gsub(/arm64/, "aarch64"); gsub(/amd64/, "x86_64"); print}').tar.xz"
 declare -r noarch_archive="s6-overlay-noarch.tar.xz"
 
 curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${arch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${arch_archive}"
