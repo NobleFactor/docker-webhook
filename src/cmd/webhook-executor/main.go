@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/NobleFactor/docker-webhook/cmd/internal/azure"
+	"github.com/NobleFactor/docker-webhook/internal/jwt"
 )
 
 var (
@@ -44,7 +47,7 @@ func main() {
 	// Fetch JWT secret from Azure Key Vault (once)
 	if len(jwtSecret) == 0 && authHeader != "" {
 		var err error
-		jwtSecret, err = fetchSecretFromKeyVault(keyVaultURL, secretName)
+		jwtSecret, err = azure.FetchSecretFromKeyVault(keyVaultURL, secretName)
 		if err != nil {
 			outputJSON(Response{Error: fmt.Sprintf("failed to fetch JWT secret: %v", err)})
 			os.Exit(1)
@@ -53,7 +56,7 @@ func main() {
 
 	// Validate JWT if present
 	if authHeader != "" {
-		if !validateJWT(authHeader) {
+		if !jwt.ValidateJWT(authHeader, jwtSecret) {
 			outputJSON(Response{Error: "invalid JWT"})
 			os.Exit(1)
 		}

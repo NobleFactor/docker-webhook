@@ -8,13 +8,11 @@
 ARG BUILDPLATFORM
 FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_build
 
-LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
-
 # Build webhook from https://github.com/adnanh/webhook by Adnan Hajdarević
-WORKDIR /go/src/github.com/adnanh/webhook
+
+LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
 ARG webhook_version=2.8.2
 
-# Attribution: This code is from https://github.com/adnanh/webhook by Adnan Hajdarević
 # Directory structure after RUN:
 # /go/src/github.com/adnanh/webhook/
 # ├── go.mod                    # Module definition from adnanh/webhook repo
@@ -25,10 +23,17 @@ ARG webhook_version=2.8.2
 # └── /usr/local/bin/
 #     └── webhook               # Built webhook binary
 
+WORKDIR /go/src/github.com/adnanh/webhook
+
 RUN <<EOF
+set -o errexit
 apt-get update --yes
 apt-get install --no-install-recommends --yes curl
-curl --fail --show-error --silent --retry 3 --retry-delay 2 --location --output webhook.tar.gz "https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz"
+curl --fail --show-error --silent --retry 3 --retry-delay 2 --location --output webhook.tar.gz "https://github.com/adnanh/webhook/archive/refs/tags/${webhook_version}.tar.gz"
+if ! echo "3d402ab713e3be70f46aa31d57ed3e63  webhook.tar.gz" | md5sum -c - > /dev/null 2>&1; then
+    echo "MD5 checksum mismatch: Expected 3d402ab713e3be70f46aa31d57ed3e63, not $(md5sum webhook.tar.gz) for the webhook source at https://github.com/adnanh/webhook/archive/refs/tags/${webhook_version}.tar.gz"
+    exit 1
+fi
 tar -xzf webhook.tar.gz --strip 1
 go mod download
 CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook
@@ -39,13 +44,12 @@ EOF
 ARG BUILDPLATFORM
 FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_executor_build
 
-LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
+# Conditionally build webhook-executor
 
-WORKDIR /go/src/github.com/noblefactor/docker-webhook
-COPY go.mod src ./
+LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
+SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
 ARG webhook_executor_exclude=false
 
-# Attribution: This code is from https://github.com/NobleFactor/docker-webhook by David Noble
 # Directory structure after COPY:
 # /go/src/github.com/noblefactor/docker-webhook/
 # ├── go.mod                    # Our module definition
@@ -59,29 +63,27 @@ ARG webhook_executor_exclude=false
 #     └── webhook-executor/
 #         └── main.go           # Main Go file for webhook-executor
 
-SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
+WORKDIR /go/src/github.com/noblefactor/docker-webhook
+COPY src/ ./
 
-# Initialize module and download dependencies (safer: require committed go.mod/go.sum)
 RUN <<'EOF'
 if [[ ${webhook_executor_exclude:-false} != true ]]; then
     echo "Building webhook-executor..."
-
-    # Build the executor from the module root.
     cd cmd/webhook-executor
     go mod tidy
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook-executor .
 else
-    echo "Skipping webhook-executor build"
+    echo "Skipping webhook-executor build."
 fi
 EOF
 
 FROM debian:trixie-slim AS runtime
 
+LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
+SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
 ARG TARGETARCH
 ARG webhook_port=9000
 ARG s6_overlay_version=3.2.1.0
-
-SHELL [ "/usr/bin/env", "bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c" ]
 
 ### Setup S6 Overlay and webook
 
@@ -103,7 +105,20 @@ EOF
 
 ##### Install s6 overlay
 RUN <<EOF
-declare -r arch_archive="s6-overlay-${TARGETARCH/arm64/aarch64}.tar.xz"
+case $TARGETARCH in
+  amd64)
+    arch=x86_64
+    ;;
+  arm64)
+    arch=aarch64
+    ;;
+  *)
+    echo "Unsupported architecture: $TARGETARCH" >&2
+    exit 1
+    ;;
+esac
+
+declare -r arch_archive="s6-overlay-${arch}.tar.xz"
 declare -r noarch_archive="s6-overlay-noarch.tar.xz"
 
 curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${arch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${arch_archive}"
