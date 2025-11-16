@@ -1,0 +1,53 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+.TH New-DockerLocation 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+New-DockerLocation \- generate certificate request and Docker Compose YAML for a location
+.SH SYNOPSIS
+New-DockerLocation [OPTIONS]
+.SH DESCRIPTION
+Generates a certificate request (certificate-request.conf) and a Docker Compose YAML file (docker-LOCATION.yaml) for the specified LOCATION. Places the certificate request in secrets/certificates/LOCATION/ and the Compose YAML file in the workspace root.
+.SH ARGUMENTS
+.TP
+.B --env-file <file>
+Load environment variables from a file. Variables in the file override command-line arguments.
+.TP
+.B --role <role>
+Set the role name (e.g., webhook, homebridge). Required.
+.TP
+.B --location <location>
+Set the location name (e.g., us-wa). Required.
+.TP
+.B --country-code <code>
+Country code (default: US). Required.
+.TP
+.B --state-or-province <state>
+State or province (default: Washington). Required.
+.TP
+.B --city <city>
+City (default: Redmond). Required.
+.TP
+.B --organization-name <name>
+Organization name (default: The Noble Family). Required.
+.TP
+.B --organizational-unit <unit>
+Organizational unit (default: 5028 243rd Ave NE). Required.
+.TP
+.B --domain-name <domain>
+Domain name (default: home.thenoble.family). Required.
+.TP
+.B --email-address <email>
+Email address (default: network-admin@thenoble.family). Required.
+.TP
+.B -h, --help
+Show usage information and exit.
+.SH USAGE
+.RS
+.nf
+\fBLOCATION=us-wa ./bin/New-DockerLocation --location us-wa\fR
+.fi
+.RE
+.SH AUTHOR
+NobleFactor

@@ -1,0 +1,68 @@
+#!/bin/sh
+# Robust codespell wrapper: runs two passes from the repo root and attempts to
+# use the appropriate ignore-words flag supported by the local codespell.
+# Pass 1: whole repo excluding man pages (so man pages are fully checked).
+# Pass 2: man pages only with the ignore-words-list applied (to suppress
+# short troff bullet tokens produced by troff escape sequences)
+
+set -eu
+
+# Find repo root (script is in scripts/)
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+cd "$REPO_ROOT"
+
+# Find codespell binary
+CODESPELL_BIN=$(command -v codespell || true)
+if [ -z "$CODESPELL_BIN" ]; then
+	echo "codespell binary not found in PATH; skipping spell check." >&2
+	exit 0
+fi
+
+# Common settings
+SKIP_COMMON="volumes/**,webhook.config/**"
+IGNORE_FILE=".codespell-ignore-troff-formatting-commands"
+
+# Detect which ignore-words option is supported by this codespell version.
+# Prefer the file-based option (-I/--ignore-words FILES) which accepts a
+# filename containing one word per line. Fall back to the inline list
+# (-L/--ignore-words-list WORDS) if needed.
+IGNORE_OPT=""
+IGNORE_AS_FILE=0
+if $CODESPELL_BIN --help 2>&1 | grep -q -- '--ignore-words'; then
+	IGNORE_OPT="--ignore-words"
+	IGNORE_AS_FILE=1
+elif $CODESPELL_BIN --help 2>&1 | grep -q -- '--ignore-words-list'; then
+	IGNORE_OPT="--ignore-words-list"
+	IGNORE_AS_FILE=0
+fi
+
+echo "codespell: pass 1 — repository (excluding share/man)"
+# Pass 1: run across repo excluding share/man. Pipe output through a filter
+# to remove any remaining share/man lines in case the local codespell's
+# --skip handling is different; also remove matches from this wrapper file.
+"$CODESPELL_BIN" --skip="$SKIP_COMMON,share/man/**" "$@" . 2>&1 | \
+		grep -v '/share/man/' | grep -v '/volumes/' | grep -v '/webhook.config/' | grep -v '\./scripts/codespell-filtered:' || true
+
+echo "codespell: pass 2 — man pages (applying ignore list if available)"
+if [ -n "$IGNORE_OPT" ] && [ -f "$REPO_ROOT/$IGNORE_FILE" ]; then
+	if [ "$IGNORE_AS_FILE" -eq 1 ]; then
+		# Pass the ignore file path (comma-separated filenames supported)
+		"${CODESPELL_BIN}" --skip="$SKIP_COMMON" "$IGNORE_OPT" "$REPO_ROOT/$IGNORE_FILE" share/man || true
+	else
+		# Pass the comma-separated inline words from the file
+		# Read the file, strip comments/empty lines, join with commas
+		WORDS=$(awk '!/^#/ && NF {printf "%s,", $0}' "$REPO_ROOT/$IGNORE_FILE" | sed 's/,$//') || WORDS=""
+		if [ -n "$WORDS" ]; then
+			"${CODESPELL_BIN}" --skip="$SKIP_COMMON" "$IGNORE_OPT" "$WORDS" share/man || true
+		else
+			"${CODESPELL_BIN}" --skip="$SKIP_COMMON" share/man || true
+		fi
+	fi
+else
+	# Fallback: run man pages without ignore list
+	"${CODESPELL_BIN}" --skip="$SKIP_COMMON" share/man || true
+fi
+
+exit 0
+

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+set -o errexit -o nounset -o pipefail
+
+if [[ -z ${1:-} ]]; then
+    echo "[noblefactor.init] Expected user name as first argument to entrypoint."
+    echo "Usage: $0 <user> [<path>...]"
+    exit 1
+fi
+
+declare -r user="${1}"
+shift 1
+
+# Modify the give user's primary user/group ID's based on PUID/PGID environment variables at runtime.
+# This allows the container to match host user/group IDs for volume permissions.
+
+declare -r current_uid=$(id --user "${user}")
+declare -r current_gid=$(id --group "${user}")
+
+if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
+
+    echo "Runtime user/group modification requested"
+
+    if [[ -n "${PGID:-}" ]] && [[ "${PGID}" != "${current_gid}" ]]; then
+        # Fail early if the target GID already exists and belongs to a different group
+        if getent group "${PGID}" >/dev/null && [[ "$(getent group "${PGID}" | cut -d: -f1)" != "${user}" ]]; then
+            echo "Target GID ${PGID} already in use by group $(getent group "${PGID}" | cut -d: -f1)" >&2
+            exit 1
+        fi
+        echo "Modifying webhook group: ${current_gid} -> ${PGID}"
+        groupmod --gid "${PGID}" "${user}"
+    fi
+
+    if [[ -n "${PUID:-}" ]] && [[ "${PUID}" != "${current_uid}" ]]; then
+        # Fail early if the target UID already exists and belongs to a different user
+        if getent passwd "${PUID}" >/dev/null && [[ "$(getent passwd "${PUID}" | cut -d: -f1)" != "${user}" ]]; then
+            echo "Target UID ${PUID} already in use by user $(getent passwd "${PUID}" | cut -d: -f1)" >&2
+            exit 1
+        fi
+        echo "Modifying webhook user: ${current_uid} -> ${PUID}"
+        usermod --uid "${PUID}" "${user}"
+    fi
+fi
+
+if (( $# > 0 )); then
+    echo "Updating volume ownership..."
+    declare -r target_uid="${PUID:-$current_uid}"
+    declare -r target_gid="${PGID:-$current_gid}"
+    chown --recursive --verbose "${target_uid}:${target_gid}" "$@"
+else
+    echo "No paths provided to chown, skipping ownership update."
+fi
+
+echo "$(hostname) user: $(id "${user}")"
+
+# Chain to S6 overlay init
+exec /init

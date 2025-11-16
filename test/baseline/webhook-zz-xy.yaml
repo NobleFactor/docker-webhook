@@ -1,0 +1,7 @@
+services:
+  webhook:
+    volumes:
+      - ./volumes/zz-xy:/usr/local/etc/webhook
+    extends:
+      file: compose.yaml
+      service: webhook

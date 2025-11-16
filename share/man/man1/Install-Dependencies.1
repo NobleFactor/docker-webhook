@@ -1,0 +1,29 @@
+.TH Install-Dependencies 1 "November 2025" "Install-Dependencies" "bin"
+.SH NAME
+Install-Dependencies \- Install required dependencies for docker-webhook
+.SH SYNOPSIS
+.B Install-Dependencies
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B Install-Dependencies
+installs the required dependencies for the docker-webhook project on the host system.
+This includes package managers (Homebrew or MacPorts on macOS), Docker, and other
+prerequisites needed to build and run the docker-webhook container.
+.PP
+On macOS, it detects and uses the available package manager. On Linux, it uses
+apt or yum/dnf depending on the distribution.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXIT STATUS
+The script exits with status 0 on success, or 1 on error (e.g., unsupported OS,
+missing package manager, or installation failure).
+.SH SEE ALSO
+.BR brew (1),
+.BR port (1),
+.BR docker (1),
+.BR apt (1),
+.BR yum (1)
+.SH AUTHOR
+Noble Factor

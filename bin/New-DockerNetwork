@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# shellcheck source=bin/Declare-BashScript
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# New-DockerNetwork - create a docker network using Noble Factor conventions
+
+# Documentation is in the accompanying manual page: New-DockerNetwork(1).
+#
+# Reference:
+#
+# 1. dockerdocs: docker network create
+#    https://docs.docker.com/reference/cli/docker/network/create/#:~:text=$%20docker%20network%20create%20%2Dd%20bridge,responsibility%20to%20avoid%20name%20conflicts.
+#
+# 2. dockerdocs: Macvlan network driver
+#    https://docs.docker.com/engine/network/drivers/macvlan/
+#
+# 3. dockerdocs: Use IPv6 Networking
+#    https://docs.docker.com/engine/daemon/ipv6/
+#
+
+source "$(dirname "$0")/Declare-BashScript" "$0" "help,device:,driver:,ip-range:" "hd" "$@"
+
+###########
+# Functions
+###########
+
+function get_linkname() {
+
+    local network="$1"
+    local network_id=$(sudo docker network inspect "${network}" --format '{{.Id}}' | cut --characters=1-12)
+    local network_driver=$(sudo docker network inspect "${network}" --format '{{.Driver}}')
+
+    case "${network_driver}" in
+    bridge)
+        # When using the bridge network driver, Docker creates a virtual Ethernet bridge on the host machine. This
+        # bridge acts as a virtual switch that connects all containers attached to the bridge network. Each container
+        # gets its own virtual Ethernet interface (veth) that is connected to the bridge. The naming convention for
+        # these interfaces starts with "br-" followed by the first 12 characters of the network ID.
+        # Noteworthy: com.docker.network.bridge.inhibit_ipv4
+        # For user-defined bridge networks, if you set the com.docker.network.bridge.inhibit_ipv4 option to true
+        # during network creation, Docker will not assign an IPv4 gateway address to the bridge interface. While
+        # the IP link for the container itself is still created, the bridge itself won't have a default gateway IP,
+        # requiring manual configuration if north-south traffic is desired.
+        echo "br-${network_id}"
+        return
+        ;;
+    ipvlan | macvlan)
+        # When using ipvlan or macvlan network drivers, containers are given their own MAC addresses (macvlan) or IP
+        # addresses (ipvlan and macvlan) directly on the host's physical network interface, rather than being routed
+        # through a Docker-managed bridge. In these cases, Docker does not create a separate IP link for a bridge, as
+        # the container becomes a first-class citizen on the host's network.
+        echo ""
+        return
+        ;;
+    host)
+        # When the host network mode, containers share the network namespace of the host machine. This means the
+        # container directly uses the host's network interfaces, including its IP addresses and routing table. No
+        # separate IP link is created for the container's network, as it's not isolated in its own network namespace.
+        echo ""
+        return
+        ;;
+    none)
+        # When the none network mode is used, the container has no network interfaces apart from a loopback interface.
+        echo ""
+        return
+        ;;
+    overlay)
+        error 1 "Unsupported network driver: ${network_driver}"
+        ;;
+    *)
+        error 1 "Unrecognized network driver: ${network_driver}"
+        ;;
+    esac
+
+}
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="New-DockerNetwork [--device <name>] [--driver <bridge|ipvlan|macvlan>] [--ip-range <CIDR>] [--help] <service-name>"
+eval set -- "$script_arguments"
+
+[[ $* != -- ]] || usage "$synopsis"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    --device)
+        declare -r device_name="$2"
+        shift 2
+        ;;
+    -d | --driver)
+        declare -r driver_name="$2"
+        shift 2
+        ;;
+    --ip-range)
+        declare -r ip_range="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+if [[ -z ${device_name:-} ]]; then
+    case $OSTYPE in
+    darwin*)
+        declare -r default_device_name=$(scutil --dns | awk '/if_index/ { print gensub(/[()]/, "", "g", $4); exit }')
+        ;;
+    linux-gnu*)
+        declare -r default_device_name=$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+        ;;
+    *)
+        error 1 "Unsupported operating system: $OSTYPE"
+        ;;
+    esac
+    declare -r device_name="${default_device_name}"
+fi
+
+if [[ -z ${driver_name:-} ]]; then
+    case $OSTYPE in
+    darwin*)
+        declare -r driver_name=bridge
+        ;;
+    linux-gnu*)
+        declare -r driver_name=macvlan
+        ;;
+    esac
+fi
+
+if [[ -z ${ip_range:-} ]]; then
+    case $driver_name in
+    ipvlan | macvlan)
+        error 1 "The --ip-range option is required for the '${driver_name}' driver."
+        ;;
+    bridge | host | none) ;;
+    *)
+        error 1 "Unsupported network driver: ${driver_name}"
+        ;;
+    esac
+else
+    case $driver_name in
+    ipvlan | macvlan)
+        declare -r address_pool="$(ipcalc "${ip_range}" | awk '/^HostMin: / { print $2; exit }')"
+        declare -r host_address="$(ipcalc "${ip_range}" | awk '/^HostMax: / { print $2; exit }')"
+        ;;
+    bridge | host | none)
+        note "The --ip-range option is not applicable for the '${driver_name}' driver. Ignoring."
+        ;;
+    *)
+        error 1 "Unsupported network driver: ${driver_name}"
+        ;;
+    esac
+fi
+
+[[ -n ${1:-} ]] || error 1 "A docker service name is required."
+declare -r service_name="$1"
+
+###########
+# Main
+###########
+
+declare -r network_name="${service_name:0:$((15 - (${#device_name} > 15 ? 15 : ${#device_name})))}_${device_name:0:15}"
+
+case $OSTYPE in
+darwin*)
+    declare -r ipv4_subnet=$(ipcalc $(ifconfig -f inet:cidr,inet6:cidr "${device_name}" | awk '/inet / {print $2}') | awk '/Network:/ {print $2}')
+    declare -r ipv4_gateway=$(netstat -rn | awk '/^default[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[[:space:]]+\w+[[:space:]]+'"$device_name"'/ { print $2 }')
+    ;;
+linux-gnu*)
+
+    declare -r ipv4_address="$(nmcli --escape no --get-values IP4.ADDRESS device show "${device_name}" | head -n 1)"
+
+    if [[ -z "${ipv4_address}" ]]; then
+        error 1 "No IPv4 address found for device: ${device_name}"
+    fi
+
+    declare -r ipv4_subnet="$(ipcalc "${ipv4_address:-}" | awk '/^Network:/ {print $2}')"
+    declare -r ipv4_gateway=$(nmcli --escape no --get-values IP4.GATEWAY device show "${device_name}")
+
+    declare -r ipv6_subnet=$(nmcli --escape no --get-values IP6.ROUTE device show "${device_name}" | awk '
+        BEGIN { 
+            RS = "[[:space:]]*\\|[[:space:]]*"
+            FS = "," 
+        } 
+        {
+            sub(/dst = /, "", $1); 
+            if ($1 !~ /fe80::\/64|::\/0/) {
+                print $1
+                exit
+            } 
+        }')
+    ;;
+*)
+    error 1 "Unsupported operating system: $OSTYPE"
+    ;;
+esac
+
+# Clean up any existing network with the same name
+
+sudo docker network rm --force "${network_name}" >/dev/null
+sudo ip link del "${service_name:0:10}_shim" 2>/dev/null || true
+
+# Create the docker network
+
+sudo docker network create --driver "${driver_name}" \
+    --ipv4 --subnet="${ipv4_subnet}" --gateway="${ipv4_gateway}" \
+    $([[ -n ${address_pool:-} ]] && echo --ip-range "${address_pool}") \
+    $([[ "${driver_name}" == macvlan || "${driver_name}" == ipvlan ]] && echo --opt parent="${device_name}") \
+    $([[ -n ${host_address:-} ]] && echo --aux-address hostshim="${host_address}") \
+    $([[ $OSTYPE == linux-gnu* && -n ${ipv6_subnet:-} ]] && echo --ipv6 --subnet="${ipv6_subnet}") \
+    "${network_name}" >/dev/null
+
+declare -r link_name="$(get_linkname "${network_name}")"
+
+note "Created docker ${driver_name} network ${network_name} on parent device ${device_name}$([[ -z ${link_name} ]] || echo " with ip link name ${link_name}")"
+sudo docker network inspect "${network_name}" 1>&2
+
+if [[ "$OSTYPE" == linux-gnu* && -n ${link_name:-} ]]; then
+    ip -s link show "${link_name}" # Links show up on Linux, but not on macOS
+fi
+
+if [[ "$OSTYPE" == linux-gnu* && -n ${ip_range:-} ]]; then
+
+    # Create a shim link to assign an address to the host so that it can access containers on the new network
+
+    declare -r shim_link_name="${service_name:0:10}_shim"
+    declare -r subnet_prefix="${ip_range#*/}"
+
+    sudo ip link add "${shim_link_name}" link "${device_name}" type macvlan mode bridge
+    sudo ip addr add "${host_address}/${subnet_prefix}" dev "${shim_link_name}"
+    sudo ip link set "${shim_link_name}" up
+
+    note $"Created shim link ${shim_link_name} for host access to containers on ${network_name}:\n$(ip -s link show "${shim_link_name}")"
+
+fi
+
+echo "${network_name}"
+note "Done."

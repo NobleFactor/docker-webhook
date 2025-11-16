@@ -1,0 +1,33 @@
+services:
+  webhook:
+    container_name: ${CONTAINER_HOSTNAME}
+    image: ${WEBHOOK_IMAGE}
+    hostname: ${CONTAINER_HOSTNAME}
+    domainname: ${CONTAINER_DOMAIN_NAME}
+    ports:
+      - "${WEBHOOK_PORT:-9000}:${WEBHOOK_PORT:-9000}"
+    networks:
+      docker_network:
+        ipv4_address: ${IP_ADDRESS:-}
+    restart: always
+    environment:
+      NOBLEFACTOR_LOCATION: ${LOCATION}
+      WEBHOOK_PORT: ${WEBHOOK_PORT:-9000}
+      PUID: ${WEBHOOK_PUID:-}
+      PGID: ${WEBHOOK_GUID:-}
+      WEBHOOK_KEYVAULT_URL: ${WEBHOOK_KEYVAULT_URL:-}
+      WEBHOOK_SECRET_NAME: ${WEBHOOK_SECRET_NAME:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD-SHELL", "status=$(curl --silent -o /dev/null -w '%{http_code}' http://localhost:${WEBHOOK_PORT:-9000}/) ; [ \"$status\" -eq 200 ] || exit 1"]
+      interval: 60s
+      retries: 5
+      start_period: 300s
+      timeout: 2s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10mb"
+        max-file: "1"
+    security_opt:
+      - apparmor:unconfined

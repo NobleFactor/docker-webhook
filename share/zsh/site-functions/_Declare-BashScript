@@ -1,0 +1,10 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Declare-BashScript
+_arguments \
+  '--help[Show usage information and exit]' \
+  '--verbose[Enable verbose output]' \
+  '--path[Specify a path]'

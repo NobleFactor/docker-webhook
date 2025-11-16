@@ -1,0 +1,199 @@
+.TH docker-webhook 1 "November 2025" "docker-webhook" "Makefile"
+.SH NAME
+docker-webhook \- Makefile reference and help-generation guide for the Noble Factor webhook project
+.SH SYNOPSIS
+.B make [target] [VAR=VALUE]
+.SH DESCRIPTION
+This manual page documents the Makefile used to build, create and operate the
+Noble Factor Docker webhook image. It focuses on the Makefile's configuration
+parameters (top-level variables under "PARAMETERS"), the help-generation
+conventions used by the file, and the primary convenience targets you will use
+when developing and operating the project locally.
+.SH HELP ANNOTATION RULES
+The Makefile ships a lightweight help generator. Two simple annotations control
+what appears in the brief help output (the `help-short` target):
+.RS
+.IP "1." 3
+Section headers: a line beginning with `##@` (two hashes and an at-symbol)
+marks a section heading in the output.
+.IP "2." 3
+Target annotations: append an inline comment `##` to a target line to make it
+appear in the brief help listing. The text after `##` is used as the short
+description for that target. Example:
+.nf
+clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROUS)
+.fi
+.RE
+.SH PARAMETERS
+The Makefile exposes a compact set of configuration variables (with sensible
+defaults) that influence how images and containers are built and run. Set
+them on the `make` command line or export them into the environment prior
+to invoking make. The most commonly used parameters are listed below.
+.TP
+.B CONTAINER_DOMAIN_NAME
+The domain used when assembling hostnames. It defaults to "localdomain".
+.TP
+.B CONTAINER_ENVIRONMENT
+The environment name (dev, prod, etc.). When set to `prod`, the hostname suffix is omitted. Otherwise, `-$(CONTAINER_ENVIRONMENT)` is appended.
+.TP
+.B CONTAINER_HOSTNAME
+The container hostname used for `docker` operations. It defaults to
+`webhook-$(LOCATION)$(hostname_suffix)`.
+.TP
+.B IP_ADDRESS
+An optional static IP to assign to the container when creating a macvlan or bridge network. If absent, Docker Compose will select an address.
+.TP
+.B IP_RANGE
+The IP subnet range used when creating macvlan networks. It is required for the macvlan driver and unused for bridge networks.
+.TP
+.B LOCATION
+The geographical or location tag used in compose files, volume layout, and hostnames.
+.TP
+.B PLATFORM
+The `docker buildx` platform list. It defaults to the host architecture, adjusted to common naming (e.g., `amd64` or `arm64`). This affects multi-arch builds.
+.TP
+.B S6_OVERLAY_VERSION
+The version of s6-overlay that the image installs. It is used as a build argument.
+.TP
+.B WEBHOOK_KEYVAULT_URL
+The URL of the Azure Key Vault containing the JWT secret for webhook-executor
+HMAC authentication. It is required if webhook-executor is used as execute-command
+in hooks.json.
+.TP
+.B WEBHOOK_EXECUTOR_EXCLUDE
+Set to true to build the webhook image without the webhook-executor program.
+The webhook-executor program allows webhook rules to be executed with HMAC
+authentication using a JWT token stored in an Azure Key Vault, authenticated
+via Azure service principal credentials. It defaults to false (includes webhook-executor).
+.TP
+.B WEBHOOK_PGID
+The primary group ID used when adjusting ownership inside the container's volume layout. It defaults to 0.
+.TP
+.B WEBHOOK_PORT
+The service port that the webhook listens on inside the container. It defaults to 9000.
+.TP
+.B WEBHOOK_PUID
+The user ID used when adjusting ownership inside the container's volume layout.
+.TP
+.B WEBHOOK_SECRET_NAME
+The name of the secret in the Azure Key Vault that holds the JWT token for
+webhook-executor. It is required if webhook-executor is used as execute-command in
+hooks.json.
+.TP
+.B AZURE_CLIENT_ID
+The Azure service principal client ID for authentication with Azure Key Vault.
+Set via `make New-WebhookAzureAuth` or manually in hooks.env.
+.TP
+.B AZURE_CLIENT_SECRET
+The Azure service principal client secret for authentication with Azure Key Vault.
+Passed at container runtime via `make Start-Webhook AZURE_CLIENT_SECRET="..."`.
+.TP
+.B AZURE_TENANT_ID
+The Azure tenant ID for the service principal. Set via `make New-WebhookAzureAuth`
+or manually in hooks.env.
+.TP
+.B WEBHOOK_VERSION
+The upstream webhook application release or version used as a build argument.
+.TP
+.B TAG
+The image tag applied to the built image. It defaults to `1.0.0-preview.1`.
+.TP
+.B IMAGE, ROLE
+Computed variables used to name and tag the built image. `IMAGE` defaults to
+`noblefactor/webhook:$(TAG)`, and `ROLE` is `webhook`.
+.SH MAIN TARGETS
+This section lists the key Makefile targets and what they do. Only targets
+annotated with an inline `##` appear in the brief `help-short` listing.
+.TP
+.B help, help-short
+Show a concise help listing derived from `##@` and `##` annotations in the
+Makefile. `help-short` uses `awk` to print annotated targets; `help-full` will
+render this man page when available.
+.TP
+.B clean
+This target stops the webhook, removes the network, and prunes images and volumes. It is a destructive operation.
+.TP
+.B test
+Run repository test scripts. The Makefile's `test` target calls
+`test/Test-DockerWebhookSanity` and `test/Test-DockerLocationGeneration`.
+.TP
+.B New-WebhookLocation
+This target generates per-location compose and certificate-request files when the
+environment file is missing or stale.
+.TP
+.B New-WebhookImage
+This target builds the webhook image using `docker buildx` and the Makefile's build arguments.
+.TP
+.B New-WebhookContainer
+Create a container from an existing image and prepare the volume layout. This
+target validates networking settings (macvlan/ip-range) before creating the
+container.
+.TP
+.B New-WebhookExecutorToken
+Generate a JWT token with a random secret and save it to Azure Key Vault. This requires Key Vault Secrets Officer role or equivalent permissions on the vault.
+.TP
+.B New-WebhookAzureAuth
+Initialize Azure service principal authentication for webhook-executor. Prompts for
+client ID, tenant ID, and client secret, then updates hooks.env with the values.
+.TP
+.B New-WebhookCredentials (New-WebhookKeys / New-WebhookCertificates)
+These are helper targets that generate SSH keys and self-signed SSL certificates used by
+the webhook container volumes.
+.TP
+.B Start-Webhook, Stop-Webhook, Restart-Webhook
+These are lifecycle helpers that start, stop, or restart the webhook container and then
+print the status with `Get-WebhookStatus`.
+.TP
+.B Start-WebhookShell
+This target opens an interactive shell inside the running container. It is a convenience target.
+.TP
+.B Get-WebhookStatus
+This target prints the compose status as JSON using `docker compose ps --format json` piped to
+`jq`.
+.TP
+.B Update-WebhookKeys / Update-WebhookCertificates / Update-WebhookHooks
+These targets copy changed keys, certificates, or hooks into the on-disk volume layout for
+a given location. Call `Restart-Webhook` to reload them in the running
+container.
+.SH EXAMPLES
+Build a multi-arch image and load it locally (single-platform defaults to
+--load):
+.nf
+make New-WebhookImage PLATFORM=linux/amd64 TAG=1.2.3
+.fi
+.TP
+Create a container for your current location (uses `LOCATION` detection):
+.nf
+make New-WebhookContainer
+.fi
+.TP
+Start the webhook with an explicit IP when using macvlan:
+.nf
+make Start-Webhook IP_ADDRESS=192.168.1.45
+.fi
+.TP
+Initialize Azure authentication for a location:
+.nf
+make New-WebhookAzureAuth LOCATION=us-wa
+.fi
+.TP
+Start the webhook with Azure client secret:
+.nf
+make Start-Webhook AZURE_CLIENT_SECRET="your-secret"
+.fi
+.TP
+Assign the Key Vault Secrets Officer role to your user on the vault:
+.nf
+az role assignment create \\
+  --assignee <your-object-id> \\
+  --role "Key Vault Secrets Officer" \\
+  --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.KeyVault/vaults/<vault-name>
+.fi
+.SH NOTES
+If you add a new target you want to appear in the brief help, append `##`
+and a short description to the same line as the target declaration. Group
+related targets under a single `##@` header to keep the help output tidy.
+.SH SEE ALSO
+Makefile(7), docker(1), docker-compose(1), jq(1), groff(1)
+.SH AUTHOR
+Noble Factor

@@ -1,0 +1,32 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+.TH Install-Docker 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Install-Docker \- install Docker Engine, CLI, containerd, buildx, and compose plugin
+.SH SYNOPSIS
+Install-Docker [OPTIONS]
+.SH DESCRIPTION
+Installs Docker CE, CLI, containerd, buildx, and compose plugin. Handles removal of conflicting packages. Includes special instructions for ODROID and Raspberry Pi hardware. Supports both Debian and Ubuntu systems. Automatically detects architecture and installs appropriate packages.
+.SH ARGUMENTS
+.TP
+.B -h, --help
+Show usage information and exit.
+.TP
+.B --no-install-recommends
+Install only essential packages, omitting recommended extras.
+.TP
+.B --dry-run
+Show actions without making changes.
+.TP
+.B --force
+Force reinstallation of Docker packages.
+.SH USAGE
+.RS
+.nf
+\fBsudo ./bin/Install-Docker [OPTIONS]\fR
+.fi
+.RE
+.SH AUTHOR
+NobleFactor

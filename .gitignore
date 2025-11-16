@@ -1,0 +1,29 @@
+# Copilot instructions copied or linked to this location
+/.github/copilot-instructions.md
+
+# macOS metadata files
+.DS_Store
+.localized
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows metadata files
+Thumbs.db
+Desktop.ini
+
+# Makefile env stamp files (created at repo root)
+/.env-*.stamp
+
+# Directory reserved for docker bind mounts
+/volumes/
+
+# Container configuration; generated except for hooks.json and command files. Represents a deployment.
+/webhook.config/
+
+# Generated environment files
+/webhook-*.yaml
+/webhook-*.env
+
+# Test artifacts
+/test/artifacts/

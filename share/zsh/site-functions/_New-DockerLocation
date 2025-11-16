@@ -1,0 +1,18 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef New-DockerLocation
+_arguments \
+  '--env-file[Load environment variables from a file]' \
+  '--role[Set the role name]' \
+  '--location[Set the location name]' \
+  '--country-code[Country code]' \
+  '--state-or-province[State or province]' \
+  '--city[City]' \
+  '--organization-name[Organization name]' \
+  '--organizational-unit[Organizational unit]' \
+  '--domain-name[Domain name]' \
+  '--email-address[Email address]' \
+  '--help[Show usage information and exit]'

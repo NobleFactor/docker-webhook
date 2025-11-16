@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# New-DockerLocation - Generate certificate request and Docker Compose YAML for a location
+# shellcheck source=bin/Declare-BashScript
+
+source "$(dirname "$0")/Declare-BashScript" "$0" \
+    "help,role:,location:,country-code:,state-or-province:,city:,organization-name:,organizational-unit:,domain-name:,email-address:,env-file:" \
+    "h:l:c:s:C:O:U:D:E:F:" \
+    "$@"
+
+###########
+# Functions
+###########
+
+set_env_from_file() {
+
+    local allowed_vars=(
+        ROLE
+        LOCATION
+        COUNTRY_CODE
+        STATE_OR_PROVINCE
+        CITY
+        ORGANIZATION_NAME
+        ORGANIZATIONAL_UNIT
+        DOMAIN_NAME
+        EMAIL_ADDRESS
+    )
+    local env_file="$1"
+
+    if [[ ! -f "$env_file" ]]; then
+        error 1 "Environment file not found: $env_file"
+    fi
+
+    while IFS='=' read -r key value; do
+
+        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue # Skip comments and empty lines
+
+        # Remove surrounding quotes from value, but do not eval or run code
+        value="${value%\"}"
+        value="${value#\"}"
+        local recognized=false
+
+        for var in "${allowed_vars[@]}"; do
+            if [[ "$key" == "$var" ]]; then
+                export "$key"="$value"
+                recognized=true
+                break
+            fi
+        done
+
+        if [[ "$recognized" == false ]]; then
+            note "Unrecognized environment variable in $env_file: $key"
+        fi
+
+    done <"$env_file"
+}
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="New-DockerLocation [--env-file <file>] [--role <role> --location <location> \
+--country-code <cc> --state-or-province <state> --city <city> --organization-name <org> \
+--organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
+eval set -- "$script_arguments"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "${synopsis}"
+        shift 1
+        ;;
+    --env-file)
+        env_file="$2"
+        if [[ ! -f "$env_file" ]]; then
+            error 1 "Environment file not found: $env_file"
+        fi
+        set_env_from_file "$env_file"
+        shift 2
+        ;;
+    --role)
+        export ROLE="$2"
+        shift 2
+        ;;
+    --location)
+        export LOCATION="$2"
+        shift 2
+        ;;
+    --country-code)
+        export COUNTRY_CODE="$2"
+        shift 2
+        ;;
+    --state-or-province)
+        export STATE_OR_PROVINCE="$2"
+        shift 2
+        ;;
+    --city)
+        export CITY="$2"
+        shift 2
+        ;;
+    --organization-name)
+        export ORGANIZATION_NAME="$2"
+        shift 2
+        ;;
+    --organizational-unit)
+        export ORGANIZATIONAL_UNIT="$2"
+        shift 2
+        ;;
+    --domain-name)
+        export DOMAIN_NAME="$2"
+        shift 2
+        ;;
+    --email-address)
+        export EMAIL_ADDRESS="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+###########
+# Constants
+###########
+
+if [[ -z "${ROLE:-}" ]]; then error 1 "Missing value for role"; fi
+if [[ -z "${LOCATION:-}" ]]; then error 1 "Missing value for location"; fi
+if [[ -z "${COUNTRY_CODE:-}" ]]; then error 1 "Missing value for country-code"; fi
+if [[ -z "${STATE_OR_PROVINCE:-}" ]]; then error 1 "Missing value for state-or-province"; fi
+if [[ -z "${CITY:-}" ]]; then error 1 "Missing value for city"; fi
+if [[ -z "${ORGANIZATION_NAME:-}" ]]; then error 1 "Missing value for organization-name"; fi
+if [[ -z "${ORGANIZATIONAL_UNIT:-}" ]]; then error 1 "Missing value for organizational-unit"; fi
+if [[ -z "${DOMAIN_NAME:-}" ]]; then error 1 "Missing value for domain-name"; fi
+if [[ -z "${EMAIL_ADDRESS:-}" ]]; then error 1 "Missing value for email-address"; fi
+
+###########
+# Main
+###########
+
+# Save exported environment variables to ${ROLE}-$(LOCATION).env
+
+env_file="${ROLE}-${LOCATION}.env"
+
+cat >"$env_file" <<EOF
+ROLE="${ROLE}"
+LOCATION="${LOCATION}"
+COUNTRY_CODE="${COUNTRY_CODE}"
+STATE_OR_PROVINCE="${STATE_OR_PROVINCE}"
+CITY="${CITY}"
+ORGANIZATION_NAME="${ORGANIZATION_NAME}"
+ORGANIZATIONAL_UNIT="${ORGANIZATIONAL_UNIT}"
+DOMAIN_NAME="${DOMAIN_NAME}"
+EMAIL_ADDRESS="${EMAIL_ADDRESS}"
+EOF
+
+# Create docker compose and certificate request files
+
+declare -r ssl_certificates_dir="${ROLE}.config/${LOCATION}/ssl-certificates"
+declare -r compose_file="${ROLE}-${LOCATION}.yaml"
+mkdir -p "$ssl_certificates_dir"
+
+envsubst <certificate-request.conf.template >"$ssl_certificates_dir/certificate-request.conf"
+envsubst <services.yaml.template >"$compose_file"
+
+note "Generated:"
+note "  $ssl_certificates_dir/certificate-request.conf"
+note "  $compose_file"
+
+note "Saved environment variables to $env_file"
