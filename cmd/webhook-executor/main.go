@@ -11,9 +11,9 @@ import (
 
 var (
 	// Azure Key Vault URL
-	keyVaultURL = os.Getenv("KEYVAULT_URL")
+	keyVaultURL = os.Getenv("WEBHOOK_KEYVAULT_URL")
 	// Name of the secret storing JWT signing key
-	secretName = os.Getenv("SECRET_NAME")
+	secretName = os.Getenv("WEBHOOK_SECRET_NAME")
 	// Cached secret
 	jwtSecret []byte
 )

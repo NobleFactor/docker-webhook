@@ -47,6 +47,12 @@ WEBHOOK_JWT_PAYLOAD      ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":
 WEBHOOK_KEYVAULT_URL     ?=
 WEBHOOK_SECRET_NAME      ?=
 
+### Azure Authentication Variables
+
+AZURE_CLIENT_ID          ?=
+AZURE_CLIENT_SECRET      ?=
+AZURE_TENANT_ID          ?=
+
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
 IP_ADDRESS ?=
@@ -171,6 +177,7 @@ docker_compose := sudo \
     WEBHOOK_PORT="$(WEBHOOK_PORT)" \
 	WEBHOOK_PUID="${WEBHOOK_PUID}" \
 	WEBHOOK_PGID="${WEBHOOK_PGID}" \
+	AZURE_CLIENT_SECRET="${AZURE_CLIENT_SECRET}" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
@@ -216,6 +223,48 @@ test: ## Runs repository test scripts
 	@./test/Test-DockerWebhookSanity --wait 2 || { echo "Test-DockerWebhookSanity failed"; exit 1; }
 	@echo "==> Running Test-DockerLocationGeneration"
 	@./test/Test-DockerLocationGeneration --test-location zz-xy || { echo "Test-DockerLocationGeneration failed"; exit 1; }
+
+##@ Azure Authentication
+New-WebhookAzureAuth: ## Initialize Azure service principal authentication for webhook-executor
+	@if [[ -z "$(AZURE_CLIENT_ID)" ]]; then
+		@read -p "Enter AZURE_CLIENT_ID: " AZURE_CLIENT_ID
+	fi
+	@if [[ -z "$(AZURE_TENANT_ID)" ]]; then
+		@read -p "Enter AZURE_TENANT_ID: " AZURE_TENANT_ID
+	fi
+	@if [[ -z "$(AZURE_CLIENT_SECRET)" ]]; then
+		@read -s -p "Enter AZURE_CLIENT_SECRET: " AZURE_CLIENT_SECRET
+		@echo
+	fi
+	@if [[ -z "$(LOCATION)" ]]; then
+		@echo "Error: LOCATION must be set (e.g., make New-WebhookAzureAuth LOCATION=us-wa)"
+		@exit 1
+	fi
+	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	@mkdir --parents "webhook.config/$(LOCATION)"
+	@if grep --quiet "^AZURE_CLIENT_ID=" "$$hooks_env" 2>/dev/null; then
+		@sed --in-place "s|^AZURE_CLIENT_ID=.*|AZURE_CLIENT_ID=$$AZURE_CLIENT_ID|" "$$hooks_env"
+	else
+		@echo "AZURE_CLIENT_ID=$$AZURE_CLIENT_ID" >> "$$hooks_env"
+	fi
+	@if grep --quiet "^AZURE_TENANT_ID=" "$$hooks_env" 2>/dev/null; then
+		@sed --in-place "s|^AZURE_TENANT_ID=.*|AZURE_TENANT_ID=$$AZURE_TENANT_ID|" "$$hooks_env"
+	else
+		@echo "AZURE_TENANT_ID=$$AZURE_TENANT_ID" >> "$$hooks_env"
+	fi
+	@echo "Azure authentication variables updated in $$hooks_env"
+	@echo "Note: AZURE_CLIENT_SECRET must be set at container runtime for security"
+	@echo "Validating Azure credentials..."
+	@if command -v az >/dev/null 2>&1; then
+		@if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
+			@echo "Azure credentials validated successfully"
+		else
+			@echo "Error: Azure credentials validation failed"
+			@exit 1
+		fi
+	else
+		@echo "Warning: Azure CLI not available for validation. Ensure credentials are correct."
+	fi
 
 ##@ Build and Create
 
