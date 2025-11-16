@@ -117,6 +117,59 @@ Example `hooks.json`:
 ]
 ```
 
+### webhook-executor API Reference
+
+This section documents the API for hooks configured with `webhook-executor` as the `execute-command` in `hooks.json`. These hooks enable secure command execution with HMAC authentication using JWT tokens from Azure Key Vault. Note that this API format is specific to `webhook-executor` calls and does not apply to other webhook configurations.
+
+#### Request Format
+
+Webhook-executor endpoints are triggered via HTTP GET requests to `/hooks/{hook-name}`, where `{hook-name}` matches a hook defined in `hooks.json` with `"execute-command": "webhook-executor"`. The request supports the following query parameters:
+
+- `hostname` (required): The target hostname for command execution
+- `command` (required): The command to execute on the target host
+
+Example request:
+
+```http
+GET /hooks/remote-mac?hostname=example.com&command=uptime
+```
+
+#### Response Schema
+
+All webhook-executor responses are returned as JSON objects with the following structure:
+
+- `exit_code` (integer, required): The exit code of the executed command (0 for success, non-zero for failure)
+- `reason` (string, required): A description of the command execution result
+- `error` (string or null, optional): Error details if the command failed, or `null` if successful
+- `stdout` (string, optional): The standard output from the executed command
+- `stderr` (string, optional): The standard error output from the executed command
+
+Example successful response:
+
+```json
+{
+  "exit_code": 0,
+  "reason": "Command executed successfully",
+  "error": null,
+  "stdout": " 14:32:15 up  5:23,  1 user,  load average: 0.00, 0.00, 0.00\n",
+  "stderr": ""
+}
+```
+
+Example error response:
+
+```json
+{
+  "exit_code": 1,
+  "reason": "Command failed",
+  "error": "uptime: command not found",
+  "stdout": "",
+  "stderr": "bash: uptime: command not found\n"
+}
+```
+
+A test script `test/Test-WebhookExecutor` is provided for validating webhook-executor API responses.
+
 ### Environment Variables
 
 - `WEBHOOK_PORT`: Port to listen on (default: 9000)
