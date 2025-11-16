@@ -29,6 +29,8 @@ RUN <<EOF
 apt-get update --yes
 apt-get install --no-install-recommends --yes curl
 curl --fail --show-error --silent --retry 3 --retry-delay 2 --location --output webhook.tar.gz "https://github.com/adnanh/webhook/archive/${webhook_version}.tar.gz"
+# Verify checksum (update this value for new versions)
+echo "84f2d581d549236512d3c214e7d97bf7 webhook.tar.gz" | md5sum -c -
 tar -xzf webhook.tar.gz --strip 1
 go mod download
 CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook
