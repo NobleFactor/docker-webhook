@@ -63,8 +63,8 @@ in hooks.json.
 .B WEBHOOK_EXECUTOR_EXCLUDE
 Set to true to build the webhook image without the webhook-executor program.
 The webhook-executor program allows webhook rules to be executed with HMAC
-authentication using a JWT token stored in an Azure Key Vault. It defaults to
-false (includes webhook-executor).
+authentication using a JWT token stored in an Azure Key Vault, authenticated
+via Azure service principal credentials. It defaults to false (includes webhook-executor).
 .TP
 .B WEBHOOK_PGID
 The primary group ID used when adjusting ownership inside the container's volume layout. It defaults to 0.
@@ -79,6 +79,18 @@ The user ID used when adjusting ownership inside the container's volume layout.
 The name of the secret in the Azure Key Vault that holds the JWT token for
 webhook-executor. It is required if webhook-executor is used as execute-command in
 hooks.json.
+.TP
+.B AZURE_CLIENT_ID
+The Azure service principal client ID for authentication with Azure Key Vault.
+Set via `make New-WebhookAzureAuth` or manually in hooks.env.
+.TP
+.B AZURE_CLIENT_SECRET
+The Azure service principal client secret for authentication with Azure Key Vault.
+Passed at container runtime via `make Start-Webhook AZURE_CLIENT_SECRET="..."`.
+.TP
+.B AZURE_TENANT_ID
+The Azure tenant ID for the service principal. Set via `make New-WebhookAzureAuth`
+or manually in hooks.env.
 .TP
 .B WEBHOOK_VERSION
 The upstream webhook application release or version used as a build argument.
@@ -120,6 +132,10 @@ container.
 .B New-WebhookExecutorToken
 Generate a JWT token with a random secret and save it to Azure Key Vault. This requires Key Vault Secrets Officer role or equivalent permissions on the vault.
 .TP
+.B New-WebhookAzureAuth
+Initialize Azure service principal authentication for webhook-executor. Prompts for
+client ID, tenant ID, and client secret, then updates hooks.env with the values.
+.TP
 .B New-WebhookCredentials (New-WebhookKeys / New-WebhookCertificates)
 These are helper targets that generate SSH keys and self-signed SSL certificates used by
 the webhook container volumes.
@@ -154,6 +170,16 @@ make New-WebhookContainer
 Start the webhook with an explicit IP when using macvlan:
 .nf
 make Start-Webhook IP_ADDRESS=192.168.1.45
+.fi
+.TP
+Initialize Azure authentication for a location:
+.nf
+make New-WebhookAzureAuth LOCATION=us-wa
+.fi
+.TP
+Start the webhook with Azure client secret:
+.nf
+make Start-Webhook AZURE_CLIENT_SECRET="your-secret"
 .fi
 .TP
 Assign the Key Vault Secrets Officer role to your user on the vault:

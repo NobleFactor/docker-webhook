@@ -11,7 +11,7 @@ import (
 // FetchSecretFromKeyVault retrieves the secret value from Azure Key Vault
 func FetchSecretFromKeyVault(vaultUrl, secretName string) ([]byte, error) {
 	if vaultUrl == "" || secretName == "" {
-		return nil, fmt.Errorf("AZURE_KEYVAULT_URL or JWT_SECRET_NAME not set")
+		return nil, fmt.Errorf("WEBHOOK_KEYVAULT_URL or WEBHOOK_SECRET_NAME not set")
 	}
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
