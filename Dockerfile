@@ -42,7 +42,7 @@ FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_executor_build
 LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
 
 WORKDIR /go/src/github.com/noblefactor/docker-webhook
-COPY go.mod src ./
+COPY src ./
 ARG webhook_executor_exclude=false
 
 # Attribution: This code is from https://github.com/NobleFactor/docker-webhook by David Noble

@@ -8,8 +8,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets"
 )
 
-// fetchSecretFromKeyVault retrieves the secret value from Azure Key Vault
-func fetchSecretFromKeyVault(vaultUrl, secretName string) ([]byte, error) {
+// FetchSecretFromKeyVault retrieves the secret value from Azure Key Vault
+func FetchSecretFromKeyVault(vaultUrl, secretName string) ([]byte, error) {
 	if vaultUrl == "" || secretName == "" {
 		return nil, fmt.Errorf("WEBHOOK_KEYVAULT_URL or WEBHOOK_SECRET_NAME not set")
 	}
@@ -24,7 +24,7 @@ func fetchSecretFromKeyVault(vaultUrl, secretName string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create Key Vault client: %w", err)
 	}
 
-	resp, err := client.GetSecret(context.Background(), secretName, nil)
+	resp, err := client.GetSecret(context.Background(), secretName, "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret: %w", err)
 	}

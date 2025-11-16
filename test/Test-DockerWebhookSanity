@@ -14,14 +14,10 @@ source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,keep,wait:" "h" "$
 # Arguments
 ###########
 
-declare -r synopsis="Test-DockerWebhookSanity [--wait N] [--keep] [--help] [image:tag]"
+declare -r synopsis="Test-DockerWebhookSanity [--wait N] [--keep] [--help]"
 eval set -- "$script_arguments"
 
-[[ $* != -- ]] || usage "$synopsis"
-
 declare -r default_image="noblefactor/webhook:1.0.0-preview.1"
-declare keep=false
-declare wait_seconds=2
 
 while :; do
     case $1 in
@@ -30,11 +26,11 @@ while :; do
         shift 1
         ;;
     --keep)
-        keep=true
+        declare -r keep=true
         shift 1
         ;;
     --wait)
-        wait_seconds="$2"
+        declare -r wait_seconds="$2"
         shift 2
         ;;
     --)
@@ -47,8 +43,10 @@ while :; do
     esac
 done
 
-image=${1:-${default_image}}
-container_name=webhook-sanity-$$
+[[ -n ${keep:-} ]]         || declare -r keep=false
+[[ -n ${wait_seconds:-} ]] || declare wait_seconds=2
+
+declare -r image="${default_image}"
 
 ###########
 # Main
