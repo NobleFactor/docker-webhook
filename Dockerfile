@@ -42,7 +42,7 @@ FROM --platform=$BUILDPLATFORM golang:trixie AS webhook_executor_build
 LABEL org.opencontainers.image.vendor="Noble Factor" org.opencontainers.image.licenses="MIT" org.opencontainers.image.authors="David.Noble@noblefactor.com"
 
 WORKDIR /go/src/github.com/noblefactor/docker-webhook
-COPY src ./
+COPY src/ ./
 ARG webhook_executor_exclude=false
 
 # Attribution: This code is from https://github.com/NobleFactor/docker-webhook by David Noble
@@ -103,7 +103,19 @@ EOF
 
 ##### Install s6 overlay
 RUN <<EOF
-declare -r arch_archive="s6-overlay-$(echo "${TARGETARCH}" | awk '{gsub(/arm64/, "aarch64"); gsub(/amd64/, "x86_64"); print}').tar.xz"
+case $TARGETARCH in
+  amd64)
+    arch=x86_64
+    ;;
+  arm64)
+    arch=aarch64
+    ;;
+  *)
+    echo "Unsupported architecture: $TARGETARCH" >&2
+    exit 1
+    ;;
+esac
+declare -r arch_archive="s6-overlay-${arch}.tar.xz"
 declare -r noarch_archive="s6-overlay-noarch.tar.xz"
 
 curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${arch_archive}" "https://github.com/just-containers/s6-overlay/releases/download/v${s6_overlay_version}/${arch_archive}"
