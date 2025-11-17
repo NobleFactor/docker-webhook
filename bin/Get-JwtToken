@@ -58,15 +58,15 @@ if ! az account show >/dev/null 2>&1; then
     note "Not logged in to Azure. Prompting for credentials..."
 
     if [[ -z "$AZURE_CLIENT_ID" ]]; then
-        read -p "Enter AZURE_CLIENT_ID: " AZURE_CLIENT_ID
+        read -r -p "Enter AZURE_CLIENT_ID: " AZURE_CLIENT_ID
     fi
 
     if [[ -z "$AZURE_TENANT_ID" ]]; then
-        read -p "Enter AZURE_TENANT_ID: " AZURE_TENANT_ID
+        read -r -p "Enter AZURE_TENANT_ID: " AZURE_TENANT_ID
     fi
 
     if [[ -z "$AZURE_CLIENT_SECRET" ]]; then
-        read -s -p "Enter AZURE_CLIENT_SECRET: " AZURE_CLIENT_SECRET
+        read -r -s -p "Enter AZURE_CLIENT_SECRET: " AZURE_CLIENT_SECRET
         echo
     fi
 
