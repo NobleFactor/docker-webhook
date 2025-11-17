@@ -205,8 +205,8 @@ HELP_COLWIDTH ?= 28
 	Start-Webhook \
 	Start-WebhookShell \
 	Stop-Webhook \
-	Test-ShellScripts \
 	Test-ShellFormatting \
+	Test-ShellScript \
 	Test-WebhookDeploymentPreparation \
 	Test-WebhookExecutor \
 	Test-WebhookReadiness \
@@ -267,7 +267,8 @@ test: ## Runs repository test scripts
 	else
 		$(MAKE) Test-WebhookExecutor
 	fi
-	$(MAKE) Test-ShellScripts
+	$(MAKE) Test-ShellFormatting
+	$(MAKE) Test-ShellScript
 
 Test-ShellFormatting: ## Check shell formatting (non-destructive)
 	@echo "==> Checking shell formatting with shfmt"
@@ -278,9 +279,9 @@ Test-ShellFormatting: ## Check shell formatting (non-destructive)
 		@echo "No shell scripts found"
 	fi
 
-Test-ShellScripts: ## Run shellcheck wrapper script against shell scripts
-	@echo "==> Running Test-ShellScripts"
-	@./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScripts failed"; exit 1; }
+Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
+	@echo "==> Running Test-ShellScript"
+	@./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
 Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook with JWT from Key Vault and configurable commands (separated by ;)
 	@hooks_env="webhook.config/$(LOCATION)/hooks.env"

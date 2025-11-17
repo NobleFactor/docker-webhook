@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: shell-format-and-lint
         name: Shell format & lint (shfmt + shellcheck)
-        entry: bash -c "make Test-ShellScripts"
+        entry: bash -c "make Test-ShellFormatting && make Test-ShellScript"
         language: system
         files: '^(bin|test|webhook.config)/.*'
         stages: [commit]

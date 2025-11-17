@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Test-ShellFormatting - Check shell formatting with shfmt
+# shellcheck source=../bin/Declare-BashScript
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Test-ShellFormatting [--help]"
+eval set -- "$script_arguments"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis"
+        shift 1
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 2 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+###########
+# Main
+###########
+
+declare -a paths=("bin" "test" "webhook.config")
+declare recurse=true
+
+note "Scanning paths: ${paths[*]} (recurse=${recurse})"
+
+declare -a found=()
+for p in "${paths[@]}"; do
+    if [[ -d "$p" ]]; then
+        if [[ "$recurse" == true ]]; then
+            while IFS= read -r f; do
+                found+=("$f")
+            done < <(find "$p" -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true)
+        else
+            while IFS= read -r f; do
+                found+=("$f")
+            done < <(find "$p" -maxdepth 1 -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true)
+        fi
+    fi
+done
+
+if [[ ${#found[@]} -eq 0 ]]; then
+    note "No shell scripts found to check formatting"
+    exit 0
+fi
+
+note "Found ${#found[@]} potential scripts"
+
+# Deduplicate while preserving order
+declare -A seen=()
+declare -a files=()
+for f in "${found[@]}"; do
+    if [[ -n "$f" && -z "${seen[$f]:-}" ]]; then
+        seen[$f]=1
+        files+=("$f")
+    fi
+done
+
+note "==> Checking shell formatting on ${#files[@]} files"
+command -v shfmt >/dev/null 2>&1 || error 2 "shfmt not found"
+
+if ! shfmt -d -i 4 "${files[@]}"; then
+    error 1 "shfmt detected formatting issues. Run 'make format' locally."
+fi
+
+success "shfmt formatting check passed on ${#files[@]} files"

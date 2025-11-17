@@ -28,11 +28,11 @@ while :; do
         shift 1
         ;;
     --paths)
-        IFS=, read -r -a paths <<< "$2"
+        IFS=, read -r -a paths <<<"$2"
         shift 2
         ;;
     -p)
-        IFS=, read -r -a paths <<< "$2"
+        IFS=, read -r -a paths <<<"$2"
         shift 2
         ;;
     --recurse)
@@ -71,13 +71,13 @@ declare -a found=()
 for p in "${paths[@]}"; do
     if [[ -d "$p" ]]; then
         if [[ "$recurse" == true ]]; then
-            while IFS= read -r -d $'\0' f; do
+            while IFS= read -r f; do
                 found+=("$f")
-            done < <(find "$p" -type f -print0 | xargs -0 -n1 grep -lE -- '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' 2>/dev/null -l || true)
+            done < <(find "$p" -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' {} + 2>/dev/null || true)
         else
-            while IFS= read -r -d $'\0' f; do
+            while IFS= read -r f; do
                 found+=("$f")
-            done < <(find "$p" -maxdepth 1 -type f -print0 | xargs -0 -n1 grep -lE -- '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' 2>/dev/null -l || true)
+            done < <(find "$p" -maxdepth 1 -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' {} + 2>/dev/null || true)
         fi
     fi
 done

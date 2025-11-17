@@ -25,7 +25,7 @@ function test_command {
 
     echo "==> Testing command: $cmd"
 
-    local response=$(curl --silent --insecure --max-time "$curl_timeout" -H "Authorization: Bearer ${jwt}"\
+    local response=$(curl --silent --insecure --max-time "$curl_timeout" -H "Authorization: Bearer ${jwt}" \
         "${webhook_url}?hostname=${destination}&command=${cmd}")
 
     if [[ -z "$response" ]]; then
@@ -52,7 +52,7 @@ declare -a commands=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-    -h|--help)
+    -h | --help)
         usage "$synopsis"
         ;;
     --command)
@@ -81,9 +81,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-(( ${#commands[@]} > 0 )) || error 1 "At least one command to test is required."
-[[ -n ${destination} ]]   || error 1 "A value for destination is required."
-[[ -n ${webhook_url} ]]   || error 1 "A value for webhook-url is required."
+((${#commands[@]} > 0)) || error 1 "At least one command to test is required."
+[[ -n ${destination} ]] || error 1 "A value for destination is required."
+[[ -n ${webhook_url} ]] || error 1 "A value for webhook-url is required."
 
 ###########
 # Main
@@ -104,7 +104,7 @@ for cmd in "${commands[@]}"; do
 done
 
 declare -r end_time=$(date +%s)
-declare -r elapsed=$(( end_time - start_time ))
+declare -r elapsed=$((end_time - start_time))
 
 note "Test Run Complete:
 Status: [$passed_tests Passed, $failed_tests Failed]
