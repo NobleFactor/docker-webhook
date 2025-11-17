@@ -1,10 +1,10 @@
 .\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
 .\" SPDX-License-Identifier: MIT
-.TH New-DockerLocation 1 "November 2025" "docker-webhook" "User Commands"
+.TH Prepare-WebhookDeployment 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-New-DockerLocation \- generate certificate request and Docker Compose YAML for a location
+Prepare-WebhookDeployment \- generate certificate request and Docker Compose YAML for a location
 .SH SYNOPSIS
-New-DockerLocation [OPTIONS]
+Prepare-WebhookDeployment [OPTIONS]
 .SH DESCRIPTION
 Generates a certificate request (certificate-request.conf) and a Docker Compose YAML file (docker-LOCATION.yaml) for the specified LOCATION. Places the certificate request in secrets/certificates/LOCATION/ and the Compose YAML file in the workspace root.
 .SH ARGUMENTS
@@ -44,7 +44,7 @@ Show usage information and exit.
 .SH USAGE
 .RS
 .nf
-\fBLOCATION=us-wa ./bin/New-DockerLocation --location us-wa\fR
+\fBLOCATION=us-wa ./bin/Prepare-WebhookDeployment --location us-wa\fR
 .fi
 .RE
 .SH AUTHOR

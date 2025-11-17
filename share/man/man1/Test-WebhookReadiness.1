@@ -1,0 +1,78 @@
+." SPDX-FileCopyrightText: 2016-2025 Noble Factor
+." SPDX-License-Identifier: MIT
+.TH Test-WebhookReadiness 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Test-WebhookReadiness \- runtime readiness test for Noble Factor webhook container images
+.SH SYNOPSIS
+.B Test-WebhookReadiness
+.fI[--wait N]\fR \fI[--keep]\fR \fI[image:tag]\fR
+.SH DESCRIPTION
+Test-WebhookReadiness is a small smoke-test script that verifies a
+webhook container image starts and shows basic runtime indicators.
+
+The script will:
+.IP "-" 2
+Start the specified container image (detached),
+.IP "-" 2
+Wait a short period for services to initialize, then capture and print the last 200 lines of container logs,
+.IP "-" 2
+Inspect runtime files such as /init, /command and /package/admin inside the container, and
+.IP "-" 2
+Remove the container unless --keep is passed.
+
+The test returns exit code 0 on success heuristics: if log output contains a "serving hooks" line or a version marker. If no indicators are found the test exits non-zero.
+.SH OPTIONS
+.TP
+.B --wait N
+Number of seconds to wait after starting the container before collecting logs and performing inspections. Default: 2 seconds.
+.TP
+.B --keep
+Do not remove the created container after the test finishes. Useful for manual debugging.
+.TP
+.B image:tag
+Optional positional argument. The container image to test; defaults to
+.I noblefactor/webhook:1.0.0-preview.1
+.SH EXIT STATUS
+.TP
+.B 0
+Success: webhook appears to have started (serving hooks or version marker found).
+.TP
+.B 1
+Sanity checks failed — no clear success markers in logs.
+.TP
+.B 2
+Required dependency (docker) not found on PATH.
+.TP
+.B 3
+Failed to start container (image not found or could not be pulled).
+.SH EXAMPLES
+.TP
+Run the default image (quick smoke test):
+.RS
+.nf
+Test-WebhookReadiness
+.fi
+.RE
+.TP
+Run a specific image and keep the container for inspection:
+.RS
+.nf
+Test-WebhookReadiness --keep myregistry/my-webhook:latest
+.fi
+.RE
+.TP
+Increase the wait time for slow systems:
+.RS
+.nf
+Test-WebhookReadiness --wait 10 noblefactor/webhook:1.0.0-preview.1
+.fi
+.RE
+.SH SEE ALSO
+.TP
+.B docker(1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

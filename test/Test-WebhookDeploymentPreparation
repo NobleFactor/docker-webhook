@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-# Test-DockerLocationGeneration - Automated test for Docker location-based artifact and certificate generation
+# Test-WebhookDeploymentPreparation - Automated test for Docker location-based artifact and certificate generation
 # shellcheck source=../bin/Declare-BashScript
 
-source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "test-location:,help" "" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "location:,help" "" "$@"
 
 ############
 # Functions
@@ -26,16 +26,17 @@ extract_cert_info() {
 # Arguments
 ############
 
+declare -r synopsis="${script_name} [--location <location>] [--help]"
 eval set -- "$script_arguments"
 
 while :; do
     case "$1" in
     -h | --help)
-        usage "Test-HomebridgeLocationGeneration [--test-location <location>] [--help]" # does not return
+        usage "${synopsis}" # does not return
         shift 1
         ;;
-    --test-location)
-        declare -r test_location="$2"
+    --location)
+        declare -r location="$2"
         shift 2
         ;;
     --)
@@ -49,7 +50,7 @@ while :; do
     [[ $# -eq 0 ]] && break
 done
 
-[[ -n "${test_location:-}" ]] || declare -r test_location="zz-xy"
+[[ -n "${location:-}" ]] || declare -r location="zz-xy"
 
 ############
 # Main
@@ -61,15 +62,15 @@ pushd "${script_root}/.." || exit
 
 declare -r baseline_dir="test/baseline"
 
-declare -r baseline_compose_file="${baseline_dir}/webhook-${test_location}.yaml"
-declare -r baseline_env_file="${baseline_dir}/webhook-${test_location}.env"
+declare -r baseline_compose_file="${baseline_dir}/webhook-${location}.yaml"
+declare -r baseline_env_file="${baseline_dir}/webhook-${location}.env"
 declare -r baseline_secrets_dir="${baseline_dir}/webhook.config"
-declare -r baseline_certificates_dir="${baseline_secrets_dir}/${test_location}/ssl-certificates"
+declare -r baseline_certificates_dir="${baseline_secrets_dir}/${location}/ssl-certificates"
 
-declare -r generated_compose_file="webhook-${test_location}.yaml"
-declare -r generated_env_file="webhook-${test_location}.env"
+declare -r generated_compose_file="webhook-${location}.yaml"
+declare -r generated_env_file="webhook-${location}.env"
 declare -r generated_secrets_dir="webhook.config"
-declare -r generated_certificates_dir="${generated_secrets_dir}/${test_location}/ssl-certificates"
+declare -r generated_certificates_dir="${generated_secrets_dir}/${location}/ssl-certificates"
 
 # Remove any generated artifacts before starting
 
@@ -78,9 +79,9 @@ rm --verbose -rf "${generated_certificates_dir}" "${generated_env_file}" "${gene
 
 # Generate artifacts
 
-note "Generating artifacts with bin/New-DockerLocation --env-file=${baseline_env_file}"
-echo >&2 && bin/New-DockerLocation --env-file="${baseline_env_file}"
-make New-WebhookCertificates LOCATION="${test_location}"
+note "Generating artifacts with bin/Prepare-WebhookDeployment --env-file=${baseline_env_file}"
+echo >&2 && bin/Prepare-WebhookDeployment --env-file="${baseline_env_file}"
+make New-WebhookCertificates LOCATION="${location}"
 
 # Verify results
 

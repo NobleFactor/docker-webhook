@@ -15,7 +15,7 @@ The `webhook.config/` directory contains your deployment configuration:
 
 ### Deployment Workflow
 
-1. **Generate Location**: Run `make New-WebhookLocation` to create compose files and certificates
+1. **Generate Location**: Run `make Prepare-WebhookDeployment` to create compose files and certificates
 2. **Configure Hooks**: Create `webhook.config/$(LOCATION)/hooks.json` with your webhook rules
 3. **Set Environment**: Define location-specific settings in `webhook-$(LOCATION).env`
 4. **Build Container**: Execute `make New-WebhookContainer` to prepare the deployment
@@ -79,6 +79,27 @@ docker run -d -p 9000:9000 \
 ```
 
 ## Configuration
+
+### Prepare-WebhookDeployment (brief)
+
+- **Usage:** `Prepare-WebhookDeployment [--env-file <file>] [--role <role> --location <location> ...]`
+- **Outputs:** `ROLE-<LOCATION>.env`, `ROLE-<LOCATION>.yaml`, `<ROLE>.config/<LOCATION>/ssl-certificates/certificate-request.conf`
+- **Requires:** `bash`, `envsubst` (from `gettext`)
+
+Example env-file (`examples/us-wa.env`):
+
+```env
+ROLE=webhook
+LOCATION=us-wa
+DOMAIN_NAME=example.com
+EMAIL_ADDRESS=ops@example.com
+```
+
+Invocation:
+
+```bash
+Prepare-WebhookDeployment --env-file ./examples/us-wa.env
+```
 
 ### Hook Configuration
 

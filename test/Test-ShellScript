@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Test-ShellScript - Find shell scripts by shebang and run shellcheck on them
+# shellcheck source=../bin/Declare-BashScript
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,paths:,recurse,shellcheck:" "hp:rs:" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Test-ShellScript [--paths <csv>] [--recurse] [--shellcheck <path>] [--help]"
+eval set -- "$script_arguments"
+
+declare -a paths=("bin" "test")
+declare recurse=false
+declare shellcheck_path="shellcheck"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis"
+        shift 1
+        ;;
+    --paths)
+        IFS=, read -r -a paths <<< "$2"
+        shift 2
+        ;;
+    -p)
+        IFS=, read -r -a paths <<< "$2"
+        shift 2
+        ;;
+    --recurse)
+        recurse=true
+        shift 1
+        ;;
+    -r)
+        recurse=true
+        shift 1
+        ;;
+    --shellcheck)
+        shellcheck_path="$2"
+        shift 2
+        ;;
+    -s)
+        shellcheck_path="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 2 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+###########
+# Main
+###########
+
+note "Scanning paths: ${paths[*]} (recurse=${recurse})"
+
+declare -a found=()
+for p in "${paths[@]}"; do
+    if [[ -d "$p" ]]; then
+        if [[ "$recurse" == true ]]; then
+            while IFS= read -r -d $'\0' f; do
+                found+=("$f")
+            done < <(find "$p" -type f -print0 | xargs -0 -n1 grep -lE -- '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' 2>/dev/null -l || true)
+        else
+            while IFS= read -r -d $'\0' f; do
+                found+=("$f")
+            done < <(find "$p" -maxdepth 1 -type f -print0 | xargs -0 -n1 grep -lE -- '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)\b' 2>/dev/null -l || true)
+        fi
+    fi
+done
+
+if [[ ${#found[@]} -eq 0 ]]; then
+    note "No shell scripts found to lint"
+    exit 0
+fi
+
+# Deduplicate while preserving order
+declare -A seen=()
+declare -a files=()
+for f in "${found[@]}"; do
+    if [[ -n "$f" && -z "${seen[$f]:-}" ]]; then
+        seen[$f]=1
+        files+=("$f")
+    fi
+done
+
+note "==> Running shellcheck on ${#files[@]} files"
+command -v "$shellcheck_path" >/dev/null 2>&1 || error 2 "shellcheck not found at '$shellcheck_path'"
+
+# First check formatting with shfmt (non-destructive check)
+if command -v shfmt >/dev/null 2>&1; then
+    if ! shfmt -d -i 4 "${files[@]}"; then
+        error 1 "shfmt detected formatting issues. Run 'make format' to auto-format changes and commit them."
+    fi
+else
+    note "shfmt not found; skipping formatting check"
+fi
+
+if ! "$shellcheck_path" -x "${files[@]}"; then
+    error 1 "shellcheck detected issues"
+fi
+
+success "shfmt and shellcheck passed on ${#files[@]} files"

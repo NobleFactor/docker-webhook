@@ -19,7 +19,7 @@ services:
       WEBHOOK_SECRET_NAME: ${WEBHOOK_SECRET_NAME:-}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
     healthcheck:
-      test: ["CMD-SHELL", "status=$(curl --silent -o /dev/null -w '%{http_code}' http://localhost:${WEBHOOK_PORT:-9000}/) ; [ \"$status\" -eq 200 ] || exit 1"]
+      test: ["CMD-SHELL", "http_status=$(curl --silent -I http://localhost:${WEBHOOK_PORT:-9000}/ | head -n 1 | sed 's/HTTP\\/[^ ]* //') ; if [[ \"$http_status\" == 200* ]]; then echo \"$http_status\"; exit 0; else echo \"$http_status\"; exit 1; fi"]
       interval: 60s
       retries: 5
       start_period: 300s
