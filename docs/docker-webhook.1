@@ -115,7 +115,7 @@ This target stops the webhook, removes the network, and prunes images and volume
 .TP
 .B test
 Run repository test scripts. The Makefile's `test` target calls
-`test/Test-WebhookReadiness` and `test/Test-WebhookDeploymentPreparation`.
+`test/Test-DockerWebhookSanity` and `test/Test-DockerLocationGeneration`.
 Additionally, `test/Test-WebhookExecutor` is available as a black-box test
 of webhook-executor API responses. See the API Reference section in README.md
 for details on the expected response schema.

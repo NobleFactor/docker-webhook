@@ -40,7 +40,7 @@ Webhook Source
       ├───► Other Endpoints
       │     (monitoring, logging, databases, external service providers, etc.)
       ▼
-  Webhook endpoint
+  Webhook HTTP Endpoint
       │
       ▼
   webhook-executor (subprocess)
