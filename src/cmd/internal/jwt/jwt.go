@@ -8,8 +8,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// validateJWT checks the token using the cached secret
-func validateJWT(authHeader string) bool {
+// ValidateJWT checks the token using the provided secret
+func ValidateJWT(authHeader string, secret []byte) bool {
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 	tokenStr = strings.TrimSpace(tokenStr)
 	if tokenStr == "" {
@@ -20,7 +20,7 @@ func validateJWT(authHeader string) bool {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return jwtSecret, nil
+		return secret, nil
 	})
 
 	if err != nil || !token.Valid {
