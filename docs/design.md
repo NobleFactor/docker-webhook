@@ -96,10 +96,14 @@ Notes:
    - JWT verification for incoming jobs.
    - Executes jobs synchronously using remote-executor.
 
-3. **Remote-executor**
-   - Receives command, destination, optional identity.
-   - Executes over SSH with timeout.
-   - Returns success/failure to runner logs.
+3. **Remote-executor (webhook-executor)**
+   - Go-based binary implementing native SSH execution with golang.org/x/crypto/ssh
+   - Structured JSON responses with status codes (0-255), HTTP-style reason phrases, correlation IDs, and error details
+   - Correlation ID generation (UUID v4) for end-to-end request traceability
+   - Differentiated error handling: executor failures, SSH connection failures, remote command failures
+   - JWT validation against Azure Key Vault secrets
+   - Comprehensive argument parsing with auto-generated correlation IDs
+   - UUID-prefixed logging for distributed tracing
 
 4. **Secrets**
    - Hookdeck signing secret (HMAC)
@@ -115,9 +119,91 @@ Notes:
 5. Job completes → logs result, reports metrics.
 
 ## 8. Checklist Before Deployment
+
 - [ ] Hookdeck signature verification implemented
 - [ ] JWT validation implemented
 - [ ] Idempotency / dedupe logic
 - [ ] Remote-executor timeout handling
 - [ ] Logging & monitoring integrated
 - [ ] Health checks configured
+
+## 9. Webhook-Executor Design
+
+### Overview
+
+The webhook-executor is a Go-based command-line tool that executes remote commands via SSH and returns structured JSON responses. It provides reliable, traceable execution with comprehensive error handling and security validation.
+
+### Architecture
+
+```text
+CLI Arguments → Argument Parsing → JWT Validation → SSH Execution → Response Generation
+     │                │                 │             │             │
+     └─ correlation-id └─ Azure Key Vault └─ golang.org/x/crypto/ssh └─ JSON Output
+```
+
+### Key Components
+
+#### Argument Parsing
+
+- Supports command-line flags: `--destination`, `--command`, `--jwt`, `--correlation-id`
+- Auto-generates UUID v4 correlation IDs if not provided
+- Validates required parameters
+
+#### JWT Validation
+
+- Validates JWT tokens against Azure Key Vault secrets
+- Supports HS256, HS384, HS512 algorithms
+- Extracts claims for authorization
+
+#### SSH Execution
+
+- Native SSH implementation using golang.org/x/crypto/ssh
+- Supports password and key-based authentication
+- Executes commands synchronously with timeout handling
+- Captures stdout, stderr, and exit codes
+
+#### Response Structure
+
+Returns JSON with consistent schema:
+
+```json
+{
+  "status": 0,
+  "reason": "OK",
+  "correlationId": "uuid-v4-string",
+  "error": null
+}
+```
+
+#### Error Handling
+
+- **Status 0-125**: Command execution results
+- **Status 126**: Command found but not executable
+- **Status 127**: Command not found
+- **Status 200+**: Executor/SSH errors (e.g., 200: SSH connection failed)
+- Reason phrases provide HTTP-style descriptions
+- Correlation IDs enable request tracing across logs
+
+#### Logging
+
+- UUID-prefixed log messages for traceability
+- Structured logging with correlation ID context
+- Error details logged with full context
+
+### Security
+
+- JWT-based authentication with Azure Key Vault integration
+- Secure SSH connections with proper key management
+- No sensitive data in logs or responses
+
+### Usage Example
+
+```bash
+./webhook-executor --destination user@host --command "echo hello" --jwt eyJ0eXAi...
+```
+
+Output:
+
+```json
+{"status":0,"reason":"OK","correlationId":"550e8400-e29b-41d4-a716-446655440000","error":null}
+```

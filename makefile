@@ -312,7 +312,7 @@ Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook wit
 		exit 1
 	}
 
-	@echo "==> Running Test-WebhookExecutor with commands: $(WEBHOOK_COMMANDS)"
+	@echo "==> Running Test-WebhookExecutor with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
 	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
 
@@ -320,7 +320,7 @@ Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook wit
 		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
 	fi
 
-	@IFS=';' read -ra cmds <<< "$(WEBHOOK_COMMANDS)"
+	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
 	@cmd_args=""
 	@for cmd in "$${cmds[@]}"; do
 		@cmd_args="$$cmd_args --command $$cmd"

@@ -5,85 +5,80 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"strings"
 
+	"github.com/NobleFactor/docker-webhook/cmd/internal/argparse"
 	"github.com/NobleFactor/docker-webhook/cmd/internal/azure"
-	"github.com/NobleFactor/docker-webhook/internal/jwt"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/jwt"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/sshremote"
+	"github.com/google/uuid"
 )
 
 var (
-	// Azure Key Vault URL
-	keyVaultURL = os.Getenv("WEBHOOK_KEYVAULT_URL")
-	// Name of the secret storing JWT signing key
-	secretName = os.Getenv("WEBHOOK_SECRET_NAME")
-	// Cached secret
-	jwtSecret []byte
+	keyVaultURL = os.Getenv("WEBHOOK_KEYVAULT_URL") // Azure key vault URL
+	secretName  = os.Getenv("WEBHOOK_SECRET_NAME")  // Name of the secret storing JWT signing key
+	jwtSecret   []byte                              // Cached secret retrieved from Azure key vault
 )
 
-// Response JSON
-type Response struct {
-	Stdout string `json:"stdout,omitempty"`
-	Stderr string `json:"stderr,omitempty"`
-	Error  string `json:"error,omitempty"`
-}
-
 func main() {
-	if len(os.Args) < 2 {
-		outputJSON(Response{Error: "no command provided"})
-		os.Exit(1)
+	log.SetPrefix("[webhook-executor] ")
+
+	parsed, err := argparse.ParseArguments(os.Args[1:])
+	if err != nil {
+		log.Printf("[ERROR] %v", err)
+		errorStr := err.Error()
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: ""})
+		return
 	}
 
-	targetCmd := os.Args[1]
-	args := os.Args[2:]
-
-	// Optional: check if last argument is JWT
-	var authHeader string
-	if len(args) > 0 && strings.HasPrefix(args[len(args)-1], "Bearer ") {
-		authHeader = args[len(args)-1]
-		args = args[:len(args)-1] // remove from args
+	correlationId := parsed.CorrelationId
+	if correlationId == "" {
+		correlationId = uuid.New().String()
 	}
 
-	// Fetch JWT secret from Azure Key Vault (once)
+	log.SetPrefix(fmt.Sprintf("[%s] ", correlationId))
+
+	log.Printf("Arguments parsed successfully: destination=%s, command=%s", parsed.Destination, parsed.Command)
+
+	targetCmd := parsed.Destination
+	command := parsed.Command
+	authHeader := parsed.AuthHeader // Fetch JWT secret from Azure Key Vault (once)
+
 	if len(jwtSecret) == 0 && authHeader != "" {
 		var err error
 		jwtSecret, err = azure.FetchSecretFromKeyVault(keyVaultURL, secretName)
 		if err != nil {
-			outputJSON(Response{Error: fmt.Sprintf("failed to fetch JWT secret: %v", err)})
-			os.Exit(1)
+			log.Printf("[ERROR] Failed to fetch JWT secret from Azure Key Vault: %v", err)
+			errorStr := fmt.Sprintf("failed to fetch JWT secret: %v", err)
+			outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+			return
 		}
+		log.Printf("JWT secret fetched successfully from Azure Key Vault")
 	}
 
-	// Validate JWT if present
-	if authHeader != "" {
-		if !jwt.ValidateJWT(authHeader, jwtSecret) {
-			outputJSON(Response{Error: "invalid JWT"})
-			os.Exit(1)
+	// Validate JWT (required)
+
+	if !jwt.ValidateJWT(authHeader, jwtSecret) {
+		prefix := authHeader
+		if len(authHeader) > 10 {
+			prefix = authHeader[:10]
 		}
+		log.Printf("[ERROR] JWT validation failed for token starting with: %s...", prefix)
+		errorStr := "invalid JWT"
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
 	}
 
-	// Execute the target command
-	cmd := exec.Command(targetCmd, args...)
-	stdout, err := cmd.Output()
+	log.Printf("JWT validation successful") // Execute the remote command
 
-	resp := Response{}
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			resp.Stderr = string(exitErr.Stderr)
-			resp.Error = string(exitErr.Stderr)
-		} else {
-			resp.Error = err.Error()
-		}
-		outputJSON(resp)
-		os.Exit(1)
-	}
-
-	resp.Stdout = string(stdout)
-	outputJSON(resp)
+	log.Printf("Executing remote SSH command: ssh %s %s", targetCmd, command)
+	response := sshremote.ExecuteRemoteCommand(targetCmd, command)
+	response.CorrelationId = correlationId
+	log.Printf("Remote SSH command execution completed")
+	outputJson(response)
 }
 
 // helper to output JSON
-func outputJSON(resp Response) {
+func outputJson(resp sshremote.Response) {
 	b, err := json.Marshal(resp)
 	if err != nil {
 		log.Fatalf("failed to marshal JSON: %v", err)
