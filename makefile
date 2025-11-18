@@ -271,13 +271,8 @@ test: ## Runs repository test scripts
 	$(MAKE) Test-ShellScript
 
 Test-ShellFormatting: ## Check shell formatting (non-destructive)
-	@echo "==> Checking shell formatting with shfmt"
-	@shell_scripts=$$(find bin test webhook.config -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true);
-	@if [[ -n "$$shell_scripts" ]]; then
-		@shfmt -d -i 4 $$shell_scripts || { echo "shfmt detected formatting issues. Run 'make format' locally."; exit 1; }
-	else
-		@echo "No shell scripts found"
-	fi
+	@echo "==> Running Test-ShellFormatting"
+	@./test/Test-ShellFormatting || { echo "Test-ShellFormatting failed"; exit 1; }
 
 Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	@echo "==> Running Test-ShellScript"

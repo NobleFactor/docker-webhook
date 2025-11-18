@@ -37,48 +37,22 @@ done
 # Main
 ###########
 
-declare -a paths=("bin" "test" "webhook.config")
-declare recurse=true
+note "==> Looking for shell scripts..."
 
-note "Scanning paths: ${paths[*]} (recurse=${recurse})"
+mapfile -t files < <(find bin test webhook.config -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true)
 
-declare -a found=()
-for p in "${paths[@]}"; do
-    if [[ -d "$p" ]]; then
-        if [[ "$recurse" == true ]]; then
-            while IFS= read -r f; do
-                found+=("$f")
-            done < <(find "$p" -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true)
-        else
-            while IFS= read -r f; do
-                found+=("$f")
-            done < <(find "$p" -maxdepth 1 -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true)
-        fi
-    fi
-done
-
-if [[ ${#found[@]} -eq 0 ]]; then
-    note "No shell scripts found to check formatting"
+if [[ ${#files[@]} -eq 0 ]]; then
+    note "No shell scripts found."
     exit 0
 fi
 
-note "Found ${#found[@]} potential scripts"
+note "Found ${#files[*]} shell scripts."
 
-# Deduplicate while preserving order
-declare -A seen=()
-declare -a files=()
-for f in "${found[@]}"; do
-    if [[ -n "$f" && -z "${seen[$f]:-}" ]]; then
-        seen[$f]=1
-        files+=("$f")
-    fi
-done
-
-note "==> Checking shell formatting on ${#files[@]} files"
-command -v shfmt >/dev/null 2>&1 || error 2 "shfmt not found"
+note "==> Checking shell formatting..."
 
 if ! shfmt -d -i 4 "${files[@]}"; then
     error 1 "shfmt detected formatting issues. Run 'make format' locally."
 fi
 
-success "shfmt formatting check passed on ${#files[@]} files"
+success "Formatting check passed on ${#files[@]} files:"
+printf '  %s\n' "${files[@]}"

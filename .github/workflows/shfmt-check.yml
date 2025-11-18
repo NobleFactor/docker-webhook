@@ -50,6 +50,16 @@ jobs:
           pip install --user pre-commit
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Install Go (to get shfmt)
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install shfmt
+        run: |
+          GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
       - name: Run pre-commit
         run: |
           pre-commit run --all-files
