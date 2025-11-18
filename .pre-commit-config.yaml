@@ -6,4 +6,4 @@ repos:
         entry: bash -c "make Test-ShellFormatting && make Test-ShellScript"
         language: system
         files: '^(bin|test|webhook.config)/.*'
-        stages: [commit]
+        stages: [pre-commit]
