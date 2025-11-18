@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-# New-DockerLocation - Generate certificate request and Docker Compose YAML for a location
+# Prepare-WebhookDeployment - Generate a Docker Compose YAML and a certificate request for deployment at a location
 # shellcheck source=bin/Declare-BashScript
 
 source "$(dirname "$0")/Declare-BashScript" "$0" \
@@ -64,7 +64,7 @@ set_env_from_file() {
 # Arguments
 ###########
 
-declare -r synopsis="New-DockerLocation [--env-file <file>] [--role <role> --location <location> \
+declare -r synopsis="${script_name} [--env-file <file>] [--role <role> --location <location> \
 --country-code <cc> --state-or-province <state> --city <city> --organization-name <org> \
 --organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
 eval set -- "$script_arguments"

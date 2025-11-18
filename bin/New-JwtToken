@@ -63,8 +63,8 @@ while :; do
 done
 
 [[ -n ${algorithm} ]] || declare -r algorithm="${algorithm:-HS512}"
-[[ -n ${payload} ]]   || declare -r payload="${payload:-{\"iat\":$(date +%s)}}"
-[[ -n ${secret:-} ]]  || declare -r secret=$(openssl rand -hex 128)
+[[ -n ${payload} ]] || declare -r payload="${payload:-{\"iat\":$(date +%s)}}"
+[[ -n ${secret:-} ]] || declare -r secret=$(openssl rand -hex 128)
 
 ###########
 # Main

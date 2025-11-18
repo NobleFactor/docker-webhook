@@ -18,8 +18,6 @@ source "$(dirname "$0")/Declare-BashScript" "$0" "help" "h" "$@"
 declare -r synopsis="Install-Dependencies [--help]"
 eval set -- "$script_arguments"
 
-[[ $* != -- ]] || usage "$synopsis"
-
 while :; do
     case $1 in
     -h | --help)
@@ -76,19 +74,18 @@ MacPorts install instructions: https://www.macports.org/install.php
     # Install Utilities
 
     if command -v port >/dev/null; then
-        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
+        for utility in codespell curl gawk gmake grepcidr ipcalc jq shellcheck shfmt; do
             command -v "${utility}" >/dev/null || sudo port install "${utility}"
         done
     else
-        for utility in codespell curl gawk grepcidr ipcalc jq shellcheck shfmt; do
+        for utility in codespell curl gawk grepcidr ipcalc jq make shellcheck shfmt; do
             command -v "${utility}" >/dev/null || brew install "${utility}"
         done
     fi
     ;;
 Linux)
     sudo apt update
-    sudo apt install --yes codespell curl gawk grepcidr ipcalc jq shellcheck shfmt
-    # script_root comes from the sourced Declare-BashScript and shellcheck can't see it so...
+    sudo apt install --yes make build-essential codespell curl gawk grepcidr ipcalc jq shellcheck shfmt
     sudo "${script_root}/Install-Docker"
     ;;
 esac

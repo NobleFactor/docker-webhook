@@ -5,16 +5,16 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-# webhook_sanity - runtime sanity test for Noble Factor webhook images
+# Test-WebhookReadiness - runtime readiness test for Noble Factor webhook containers
 # shellcheck source=../bin/Declare-BashScript
 
-source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,keep,wait:" "h" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,wait:,container:" "h" "$@"
 
 ###########
 # Arguments
 ###########
 
-declare -r synopsis="Test-DockerWebhookSanity [--wait N] [--keep] [--help]"
+declare -r synopsis="Test-WebhookReadiness [--container NAME|ID] [--wait N] [--help]"
 eval set -- "$script_arguments"
 
 declare -r default_image="noblefactor/webhook:1.0.0-preview.1"
@@ -25,9 +25,9 @@ while :; do
         usage "$synopsis" # does not return
         shift 1
         ;;
-    --keep)
-        declare -r keep=true
-        shift 1
+    --container)
+        declare -r container_spec="$2"
+        shift 2
         ;;
     --wait)
         declare -r wait_seconds="$2"
@@ -43,7 +43,6 @@ while :; do
     esac
 done
 
-[[ -n ${keep:-} ]]         || declare -r keep=false
 [[ -n ${wait_seconds:-} ]] || declare wait_seconds=2
 
 declare -r image="${default_image}"
@@ -53,10 +52,7 @@ declare -r image="${default_image}"
 ###########
 
 # check required tools
-command -v docker >/dev/null 2>&1 || {
-    echo "ERROR: docker is not installed or not in PATH"
-    exit 2
-}
+command -v docker >/dev/null 2>&1 || error 2 "docker is not installed or not in PATH"
 
 echo "[sanity] Image: $image"
 
@@ -65,36 +61,29 @@ mkdir -p "$(dirname "$0")/artifacts" >/dev/null 2>&1 || true
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 logfile="$(dirname "$0")/artifacts/docker-logs-${timestamp}.log"
 
-# Use Make targets exclusively to generate and start the webhook image/container.
-echo "[sanity] Running: make clean New-Webhook (output appended to $logfile)"
-printf '\n=== make clean New-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
-make clean New-Webhook 2>&1 | tee -a "$logfile"
-rc=${PIPESTATUS[0]:-0}
-if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: 'make clean New-Webhook' failed. Ensure Makefile targets are present and working."
-    exit 3
+# Discover or use specified container
+if [[ -n ${container_spec:-} ]]; then
+    # Use the specified container name/ID
+    if docker ps --filter "id=$container_spec" --format '{{.ID}}' | grep -q .; then
+        container_id="$container_spec"
+    elif docker ps --filter "name=$container_spec" --format '{{.ID}}' | grep -q .; then
+        container_id=$(docker ps --filter "name=$container_spec" --format '{{.ID}}')
+    else
+        error 3 "could not find a running container with name or ID '$container_spec'"
+    fi
+    container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
+    echo "[sanity] Using specified container $container_name (id: $container_id)"
+else
+    # Discover running containers started from the image
+    container_id=$(docker ps --filter "ancestor=$image" --format '{{.ID}}' | head -n 1)
+
+    if [[ -z "$container_id" ]]; then
+        error 3 "could not find a running container started from image '$image'"
+    fi
+
+    container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
+    echo "[sanity] Using container $container_name (id: $container_id) started from $image"
 fi
-
-echo "[sanity] Running: make Start-Webhook (output appended to $logfile)"
-printf '\n=== make Start-Webhook output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
-make Start-Webhook 2>&1 | tee -a "$logfile"
-rc=${PIPESTATUS[0]:-0}
-if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: 'make Start-Webhook' failed. Ensure Makefile Start-Webhook target is present and works."
-    exit 3
-fi
-
-# Locate a running container that was started from the image
-
-container_id=$(docker ps --filter "ancestor=$image" --format '{{.ID}}' | head -n 1)
-
-if [[ -z "$container_id" ]]; then
-    echo "ERROR: could not find a running container started from image '$image' after make Start-Webhook"
-    exit 3
-fi
-
-container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
-echo "[sanity] Using container $container_name (id: $container_id) started from $image"
 
 echo "[sanity] Waiting up to ${wait_seconds}s (polling) for service to initialize..."
 end_time=$((SECONDS + wait_seconds))
@@ -108,25 +97,10 @@ while ((SECONDS <= end_time)); do
     if printf '%s' "$logs" | grep -iq "serving hooks"; then
         echo "[sanity] SUCCESS: webhook started and serving hooks detected in logs."
         echo "[sanity] Full logs saved to: $logfile"
-        # cleanup only when not asked to keep artifacts
-        if [[ "${keep:-false}" != true ]]; then
-            echo "[sanity] Running: make clean (output appended to $logfile)"
-            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
-            make clean 2>&1 | tee -a "$logfile" || true
-        else
-            echo "[sanity] --keep specified; leaving container and artifacts in place: $container_name, $logfile"
-        fi
         exit 0
     fi
     if printf '%s' "$logs" | grep -iq "version [0-9]\+\.[0-9]"; then
         echo "[sanity] INFO: webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
-        if [[ "${keep:-false}" != true ]]; then
-            echo "[sanity] Running: make clean (output appended to $logfile)"
-            printf '\n=== make clean output (%s) ===\n' "$(date -u +%Y%m%dT%H%M%SZ)" >>"$logfile"
-            make clean 2>&1 | tee -a "$logfile" || true
-        else
-            echo "[sanity] --keep specified; leaving container and artifacts in place: $container_name, $logfile"
-        fi
         exit 0
     fi
     sleep 1
@@ -158,9 +132,5 @@ docker exec "$container_name" bash -c '
 
 echo
 echo "[sanity] WARNING: could not find clear 'serving hooks' or version markers in logs. Full logs written to: $logfile"
-if [[ "${keep:-false}" = true ]]; then
-    echo "[sanity] --keep specified; leaving container and artifacts in place: $container_name, $logfile"
-else
-    echo "[sanity] Leaving artifacts in place for inspection (test failed). To cleanup run: make clean"
-fi
+echo "[sanity] Leaving artifacts in place for inspection (test failed)."
 exit 1

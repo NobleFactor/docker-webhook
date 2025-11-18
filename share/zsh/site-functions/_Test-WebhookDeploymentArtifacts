@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-#compdef Test-DockerLocationGeneration
+#compdef Test-WebhookDeploymentArtifacts`
 _arguments \
-  '--test-location[Specify the test location]' \
+  '--location[Specify the test location]' \
   '--help[Show usage information and exit]'

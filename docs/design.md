@@ -37,6 +37,8 @@ Webhook Source
       ▼
   Hookdeck (proxy)
       │ HMAC signed forwarding
+      ├───► Other Endpoints
+      │     (monitoring, logging, databases, external service providers, etc.)
       ▼
   Webhook HTTP Endpoint
       │

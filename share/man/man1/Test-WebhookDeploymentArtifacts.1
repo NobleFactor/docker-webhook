@@ -1,18 +1,18 @@
 .\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
 .\" SPDX-License-Identifier: MIT
-.TH Test-DockerLocationGeneration 1 "November 2025" "docker-webhook" "User Commands"
+.TH Test-WebhookDeploymentArtifacts 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-Test-DockerLocationGeneration \- automated test for Docker location-based artifact and certificate generation
+Test-WebhookDeploymentArtifacts \- automated test for Docker location-based artifact and certificate generation
 .SH SYNOPSIS
-Test-DockerLocationGeneration [ --test-location <location> ] [ --help ]
+Test-WebhookDeploymentArtifacts [ --location <location> ] [ --help ]
 .SH DESCRIPTION
-This script verifies that generated Docker Compose and certificate artifacts for a given location match baseline reference files and certificates.
+This script verifies that generated Docker Compose and deployment artifacts for a given location match baseline reference files and certificates.
 .PP
-Workflow:
+.Workflow:
 .IP "1." 3
 Removes any previously generated artifacts, Compose YAML, and env files for the test location.
 .IP "2." 3
-Generates new artifacts using bin/New-DockerLocation and the specified env file.
+Generates new artifacts using `bin/Prepare-WebhookDeployment` and the specified env file.
 .IP "3." 3
 Runs make New-DockerCertificates for the location.
 .IP "4." 3
@@ -52,7 +52,7 @@ Baseline files:
 .br
 .SH OPTIONS
 .TP
-.B --test-location <location>
+.B --location <location>
 Location name (e.g., 'fake-wa', 'us-wa').
 .TP
 .B --help

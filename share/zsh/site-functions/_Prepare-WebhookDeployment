@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-#compdef New-DockerLocation
+#compdef Prepare-WebhookDeployment
 _arguments \
   '--env-file[Load environment variables from a file]' \
   '--role[Set the role name]' \
