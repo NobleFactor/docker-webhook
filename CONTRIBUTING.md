@@ -28,19 +28,29 @@ Before contributing, ensure you have the following installed:
 
 2. **Set up Git hooks** (optional, for pre-commit checks):
 
-   ```bash
-   # If hooks exist in .githooks
-   git config core.hooksPath .githooks
-   ```
+  ```bash
+  # If hooks exist in .githooks
+  git config core.hooksPath .githooks
+  ```
 
-3. **Verify Docker installation**:
+3. **Bootstrap the repository (recommended)**
+
+  Run the single setup command to install dependencies and register pre-commit hooks:
+
+  ```bash
+  make setup
+  ```
+
+  This will install required tools (shfmt, shellcheck, pre-commit, etc.) and configure pre-commit to run `make Test-ShellFormatting` and `make Test-ShellScripts` on commits.
+
+4. **Verify Docker installation**:
 
    ```bash
    docker --version
    docker compose version
    ```
 
-4. **Test basic functionality**:
+5. **Test basic functionality**:
 
    ```bash
    make test
@@ -104,11 +114,12 @@ Branch naming conventions:
 
 - For webhook configuration changes:
   - Edit `webhook.config/$(LOCATION)/hooks.json`
-  - Test with `make New-WebhookLocation`
+  - Test with `make Prepare-WebhookDeployment`
+  Example: `Prepare-WebhookDeployment --env-file ./examples/us-wa.env`
 
 - For script changes:
   - Test with `make test`
-  - Ensure shellcheck passes
+  - Ensure shellcheck passes (see `docs/Shell-script-style.md`)
 
 ### 4. Testing
 

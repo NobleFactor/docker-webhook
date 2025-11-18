@@ -116,8 +116,11 @@ This target stops the webhook, removes the network, and prunes images and volume
 .B test
 Run repository test scripts. The Makefile's `test` target calls
 `test/Test-DockerWebhookSanity` and `test/Test-DockerLocationGeneration`.
+Additionally, `test/Test-WebhookExecutor` is available as a black-box test
+of webhook-executor API responses. See the API Reference section in README.md
+for details on the expected response schema.
 .TP
-.B New-WebhookLocation
+.B Prepare-WebhookDeployment
 This target generates per-location compose and certificate-request files when the
 environment file is missing or stale.
 .TP
@@ -143,6 +146,27 @@ the webhook container volumes.
 .B Start-Webhook, Stop-Webhook, Restart-Webhook
 These are lifecycle helpers that start, stop, or restart the webhook container and then
 print the status with `Get-WebhookStatus`.
+.SH OPTIONS
+.TP
+.B Prepare-WebhookDeployment
+Usage: Prepare-WebhookDeployment [--env-file <file>] [--role <role> --location <location> ...]
+
+.SH EXAMPLES
+A compact example env-file and invocation:
+.nf
+ROLE=webhook
+LOCATION=us-wa
+DOMAIN_NAME=example.com
+EMAIL_ADDRESS=ops@example.com
+.fi
+
+Invocation:
+.nf
+Prepare-WebhookDeployment --env-file ./examples/us-wa.env
+.fi
+
+.SH NOTES
+The script writes `ROLE-<LOCATION>.env`, `ROLE-<LOCATION>.yaml`, and `<ROLE>.config/<LOCATION>/ssl-certificates/certificate-request.conf`. It requires `envsubst` (gettext) and `bash`.
 .TP
 .B Start-WebhookShell
 This target opens an interactive shell inside the running container. It is a convenience target.

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-_new_dockerlocation_completions()
+_new_webhook_deployment_config_completions()
 {
     local cur prev opts
     COMPREPLY=()
@@ -16,4 +16,4 @@ _new_dockerlocation_completions()
         return 0
     fi
 }
-complete -F _new_docker_location_completions New-DockerLocation
+complete -F _new_webhook_deployment_config_completions Prepare-WebhookDeployment

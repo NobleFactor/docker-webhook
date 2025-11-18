@@ -1,8 +1,9 @@
 repos:
   - repo: local
     hooks:
-      - id: shellcheck
-        name: ShellCheck
-        entry: shellcheck
+      - id: shell-format-and-lint
+        name: Shell format & lint (shfmt + shellcheck)
+        entry: bash -c "make Test-ShellFormatting && make Test-ShellScript"
         language: system
-        files: '^(bin|test)/.*'
+        files: '^(bin|test|webhook.config)/.*'
+        stages: [pre-commit]

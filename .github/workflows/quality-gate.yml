@@ -42,10 +42,10 @@ jobs:
 
       - name: Ensure test scripts are executable
         run: |
-          chmod +x test/Test-DockerWebhookSanity test/Test-DockerLocationGeneration || true
+          chmod +x test/Test-WebhookReadiness test/Test-WebhookDeploymentPreparation || true
 
       - name: Run repository test scripts (tolerant)
         run: |
           # Tests are tolerant in CI runners that may not support Docker
-          ./test/Test-DockerWebhookSanity --wait 2 || true
-          ./test/Test-DockerLocationGeneration --test-location fake-wa || true
+          ./test/Test-WebhookReadiness --wait 2 || true
+          ./test/Test-WebhookDeploymentPreparation --location fake-wa || true

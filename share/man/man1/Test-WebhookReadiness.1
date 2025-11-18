@@ -1,13 +1,13 @@
-.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
-.\" SPDX-License-Identifier: MIT
-.TH Test-DockerWebhookSanity 1 "November 2025" "docker-webhook" "User Commands"
+." SPDX-FileCopyrightText: 2016-2025 Noble Factor
+." SPDX-License-Identifier: MIT
+.TH Test-WebhookReadiness 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-Test-DockerWebhookSanity \- runtime sanity test for Noble Factor webhook container images
+Test-WebhookReadiness \- runtime readiness test for Noble Factor webhook container images
 .SH SYNOPSIS
-.B Test-DockerWebhookSanity
-\fI[--wait N]\fR \fI[--keep]\fR \fI[image:tag]\fR
+.B Test-WebhookReadiness
+.fI[--wait N]\fR \fI[--keep]\fR \fI[image:tag]\fR
 .SH DESCRIPTION
-Test-DockerWebhookSanity is a small smoke-test script that verifies a
+Test-WebhookReadiness is a small smoke-test script that verifies a
 webhook container image starts and shows basic runtime indicators.
 
 The script will:
@@ -50,21 +50,21 @@ Failed to start container (image not found or could not be pulled).
 Run the default image (quick smoke test):
 .RS
 .nf
-Test-DockerWebhookSanity
+Test-WebhookReadiness
 .fi
 .RE
 .TP
 Run a specific image and keep the container for inspection:
 .RS
 .nf
-Test-DockerWebhookSanity --keep myregistry/my-webhook:latest
+Test-WebhookReadiness --keep myregistry/my-webhook:latest
 .fi
 .RE
 .TP
 Increase the wait time for slow systems:
 .RS
 .nf
-Test-DockerWebhookSanity --wait 10 noblefactor/webhook:1.0.0-preview.1
+Test-WebhookReadiness --wait 10 noblefactor/webhook:1.0.0-preview.1
 .fi
 .RE
 .SH SEE ALSO

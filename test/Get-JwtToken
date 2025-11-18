@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Get-JwtToken - Fetch JWT token from Azure Key Vault
+# shellcheck source=bin/Declare-BashScript
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Get-JwtToken [--keyvault-url KEYVAULT_URL] [--secret-name SECRET_NAME]"
+eval set -- "$script_arguments"
+
+while :; do
+    case $1 in
+    --keyvault-url)
+        declare -r keyvault_url="$2"
+        shift 2
+        ;;
+    --secret-name)
+        declare -r secret_name="$2"
+        shift 2
+        ;;
+    -h | --help)
+        declare -r usage "$synopsis"
+        shift 1
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+if [[ -z "${keyvault_url:-}" ]]; then
+    error 1 "A value for keyvault-url is required."
+fi
+
+if [[ -z "${secret_name:-}" ]]; then
+    error 1 "A value for secret-name is required."
+fi
+
+###########
+# Main
+###########
+
+if ! az account show >/dev/null 2>&1; then
+
+    note "Not logged in to Azure. Prompting for credentials..."
+
+    if [[ -z "$AZURE_CLIENT_ID" ]]; then
+        read -r -p "Enter AZURE_CLIENT_ID: " AZURE_CLIENT_ID
+    fi
+
+    if [[ -z "$AZURE_TENANT_ID" ]]; then
+        read -r -p "Enter AZURE_TENANT_ID: " AZURE_TENANT_ID
+    fi
+
+    if [[ -z "$AZURE_CLIENT_SECRET" ]]; then
+        read -r -s -p "Enter AZURE_CLIENT_SECRET: " AZURE_CLIENT_SECRET
+        echo
+    fi
+
+    note "Logging in to Azure..."
+    az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null || error 1 "Azure login failed"
+
+else
+    note "Logged in to Azure:"
+    az account show
+fi
+
+declare -r vault_name=$(echo "$keyvault_url" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
+declare -r jwt=$(az keyvault secret show --vault-name "$vault_name" --name "$secret_name" --query value -o tsv) || error 1 "Failed to fetch JWT from Key Vault"
+
+echo "$jwt"

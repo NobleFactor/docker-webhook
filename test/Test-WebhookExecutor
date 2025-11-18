@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Test-WebhookExecutor - Test webhook hook responses inside the container
+# shellcheck source=../bin/Declare-BashScript
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "command:,jwt:,destination:,webhook-url:,help" "h" "$@"
+
+###########
+# Variables
+###########
+
+declare -r curl_timeout=10
+
+###########
+# Functions
+###########
+
+function test_command {
+    local cmd="$1"
+
+    echo "==> Testing command: $cmd"
+
+    local response=$(curl --silent --insecure --max-time "$curl_timeout" -H "Authorization: Bearer ${jwt}" \
+        "${webhook_url}?hostname=${destination}&command=${cmd}")
+
+    if [[ -z "$response" ]]; then
+        error 0 "FAIL: No response from $cmd"
+        return 1
+    fi
+
+    if ! echo "$response" | jq -e '.exit_code and .reason and (.error == null or type == "string") and has("stdout") and has("stderr")' >/dev/null 2>&1; then
+        error 0 "FAIL: Invalid JSON response for $cmd: $response"
+        return 1
+    fi
+
+    success "PASS: $cmd returned valid JSON: $response"
+    return 0
+}
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="${script_name} --webhook-url URL --destination DESTINATION --command CMD [--command CMD ...] [--help]"
+eval set -- "$script_arguments"
+declare -a commands=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis"
+        ;;
+    --command)
+        commands+=("$2")
+        shift 2
+        ;;
+    --jwt)
+        declare -r jwt="$2"
+        shift 2
+        ;;
+    --destination)
+        declare -r destination="$2"
+        shift 2
+        ;;
+    --webhook-url)
+        declare -r webhook_url="$2"
+        shift 2
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+((${#commands[@]} > 0)) || error 1 "At least one command to test is required."
+[[ -n ${destination} ]] || error 1 "A value for destination is required."
+[[ -n ${webhook_url} ]] || error 1 "A value for webhook-url is required."
+
+###########
+# Main
+###########
+
+declare -r start_time=$(date +%s)
+
+note "Starting webhook deployment tests for destination: $destination"
+passed_tests=0
+failed_tests=0
+
+for cmd in "${commands[@]}"; do
+    if test_command "$cmd"; then
+        ((passed_tests++))
+    else
+        ((failed_tests++))
+    fi
+done
+
+declare -r end_time=$(date +%s)
+declare -r elapsed=$((end_time - start_time))
+
+note "Test Run Complete:
+Status: [$passed_tests Passed, $failed_tests Failed]
+Duration: ${elapsed}s"
