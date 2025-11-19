@@ -5,11 +5,13 @@
 Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary directly
 .SH SYNOPSIS
 .B Test-WebhookExecutorStandalone
-\fI--location\fR \fILOCATION\fR \fI--token-name\fR \fITOKEN_NAME\fR \fI--destination\fR \fIDESTINATION\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+\fI--location\fR \fILOCATION\fR \fI--token-name\fR \fITOKEN_NAME\fR \fI--destination\fR \fIDESTINATION\fR \fI--service-principal-name\fR \fINAME\fR \fI--service-principal-password\fR \fIPASSWORD\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
 .SH DESCRIPTION
 Test-WebhookExecutorStandalone is a black-box test script that validates the responses
-from the webhook-executor binary directly. It sources the hooks environment file for the specified location,
-fetches the JWT token from Azure Key Vault, and runs the Go binary with command execution parameters and JWT authentication,
+from the webhook-executor binary directly. It sources the hooks environment file for the specified location
+to obtain WEBHOOK_KEYVAULT_URL and WEBHOOK_SECRET_NAME, fetches Azure service principal credentials
+(client ID, tenant ID, and client secret) using the provided service principal name, fetches the JWT token
+from Azure Key Vault, and runs the Go binary with command execution parameters and JWT authentication,
 verifying that the JSON responses conform to the expected schema.
 
 The script is designed for testing webhook-executor functionality without the webhook service,
@@ -44,6 +46,12 @@ from webhook.config/LOCATION/hooks.env.
 .TP
 .B --token-name TOKEN_NAME
 Required. The name of the secret in Azure Key Vault containing the JWT token for authentication.
+.TP
+.B --service-principal-name NAME
+Required. The display name of the Azure service principal to query for credentials (client ID and tenant ID).
+.TP
+.B --service-principal-password PASSWORD
+Required. The client secret for the Azure service principal.
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
 failures are reported but do not immediately terminate the script; all specified commands

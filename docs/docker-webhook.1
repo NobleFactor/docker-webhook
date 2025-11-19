@@ -138,7 +138,7 @@ None. This is optional for excluding integration tests.
 These are optional because the test suite can run without the integration test if excluded.
 .TP
 .B Test-WebhookExecutorStandalone
-Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;).
+Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;). The script fetches Azure service principal credentials (client ID, tenant ID) using the service principal display name.
 .PP
 Variables Referenced in Test-WebhookExecutorStandalone Target
 .PP
@@ -156,11 +156,11 @@ Azure Key Vault URL for JWT retrieval.
 .B WEBHOOK_SECRET_NAME
 Name of the secret in Key Vault containing the JWT.
 .TP
-.B AZURE_CLIENT_ID
-Azure client ID for authentication.
+.B WEBHOOK_SP
+Display name of the Azure service principal for fetching credentials.
 .TP
-.B AZURE_TENANT_ID
-Azure tenant ID for authentication.
+.B AZURE_CLIENT_SECRET
+Client secret for the Azure service principal.
 .TP
 .B WEBHOOK_EXECUTOR_COMMAND
 Semicolon-separated list of commands to test (e.g., "echo hello;echo world").
@@ -205,6 +205,9 @@ webhook-executor-$(LOCATION)-token (e.g., webhook-executor-us-wa-token)
 .TP
 .B WEBHOOK_EXECUTOR_DESTINATION
 Defaults to $(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME) (e.g., webhook-us-wa-dev.localdomain)
+.TP
+.B WEBHOOK_SP
+webhook-executor-sp
 .PP
 Variables That Must Be Set and Why
 .TP
@@ -214,11 +217,11 @@ Must be set in hooks_env (e.g., https://myvault.vault.azure.net). Required for t
 .B WEBHOOK_SECRET_NAME
 Must be set in hooks_env (e.g., webhook-secret). Specifies the Key Vault secret name containing the JWT; the script uses this to fetch the token.
 .TP
-.B AZURE_CLIENT_ID
-Must be set in hooks_env (e.g., a GUID). Needed for Azure CLI authentication to access Key Vault.
+.B WEBHOOK_SP
+Must be set (e.g., webhook-executor-sp). The display name of the Azure service principal; used to fetch AZURE_CLIENT_ID and AZURE_TENANT_ID from Azure AD.
 .TP
-.B AZURE_TENANT_ID
-Must be set in hooks_env (e.g., a GUID). Required for Azure tenant context during authentication.
+.B AZURE_CLIENT_SECRET
+Must be set (e.g., a secret string). The client secret for the Azure service principal; required for authentication with Azure Key Vault.
 .TP
 .B WEBHOOK_EXECUTOR_COMMAND
 Must be set (e.g., via make WEBHOOK_EXECUTOR_COMMAND="echo hello"). Defines the commands the test will execute against the webhook-executor binary; without it, the test has no operations to validate.

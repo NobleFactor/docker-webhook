@@ -48,6 +48,7 @@ WEBHOOK_JWT_PAYLOAD          ?= {"iss":"webhook-executor","sub":"$(LOCATION)","e
 WEBHOOK_KEYVAULT_URL         ?=
 WEBHOOK_SECRET_NAME          ?= webhook-executor-$(LOCATION)-secret
 WEBHOOK_TOKEN_NAME           ?= webhook-executor-$(LOCATION)-token
+WEBHOOK_SP                   ?= webhook-executor-sp
 
 ### Azure Authentication Variables
 
@@ -337,29 +338,23 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 		$$cmd_args
 
 Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;)
-	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
-
-	@if [[ ! -f "$$hooks_env" ]]; then
-		@echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config."
-		@exit 1
-	fi
-
-	@source "$$hooks_env"
+	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
 
 	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
 		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
 		@exit 1
 	fi
+	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
+
+	@if [[ ! -f "$$hooks_env" ]]; then
+		@echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config manually."
+		@exit 1
+	fi
+
+	@source "$$hooks_env"
+
 	@if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
 		@echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
-		@exit 1
-	fi
-	@if [[ -z "$$AZURE_CLIENT_ID" ]]; then
-		@echo "Error: AZURE_CLIENT_ID not set in $$hooks_env"
-		@exit 1
-	fi
-	@if [[ -z "$$AZURE_TENANT_ID" ]]; then
-		@echo "Error: AZURE_TENANT_ID not set in $$hooks_env"
 		@exit 1
 	fi
 
@@ -379,8 +374,10 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 
 	@./test/Test-WebhookExecutorStandalone \
 		--location "$(LOCATION)" \
-		--token-name "$(WEBHOOK_TOKEN_NAME)" \
 		--destination "$$destination" \
+		--token-name "$(WEBHOOK_TOKEN_NAME)" \
+		--service-principal-name "$(WEBHOOK_SP)" \
+		--service-principal-password "$(AZURE_CLIENT_SECRET)" \
 		$$cmd_args
 
 Test-WebhookDeploymentPreparation:
@@ -466,8 +463,8 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	@chmod -R 600 $(ssl_certificates_root)
 
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_command) ## Create container from existing image and prepare volumes
-	$(if $(AZURE_CLIENT_ID),, $(error AZURE_CLIENT_ID not set))
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
+	$(if $(AZURE_CLIENT_ID),, $(error AZURE_CLIENT_ID not set))
 	$(if $(AZURE_TENANT_ID),, $(error AZURE_TENANT_ID not set))
 
 	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
@@ -490,7 +487,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
-	@./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)" --location "$(LOCATION)"
+	@./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)" --location "$(LOCATION)" --permit-spn "$(WEBHOOK_SP)"
 
 New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
