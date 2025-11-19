@@ -13,13 +13,20 @@ performs automated testing of the Docker webhook deployment preparation
 process for a specified location. It generates and validates artifacts,
 certificates, and configuration files required for webhook deployment.
 .PP
+The script uses a baseline environment file (test/baseline/webhook-LOCATION.env)
+to generate deployment artifacts via Prepare-WebhookDeployment, creates SSL
+certificates, and compares the generated files (webhook-LOCATION.yaml,
+webhook-LOCATION.env, certificate files) against baseline versions for
+validation. If --location is not specified, it defaults to "zz-xy".
+.PP
 The script tests the complete workflow of preparing a webhook deployment,
 including SSL certificate generation, Docker network setup, and configuration
 file creation.
 .SH OPTIONS
 .TP
-.BR \-\-location " \fILOCATION\fR (required)"
+.BR \-\-location " \fILOCATION\fR"
 The location identifier for the webhook deployment to test (e.g., us-wa).
+Defaults to "zz-xy" if not specified.
 .TP
 .BR \-h ", " \-\-help
 Display usage information and exit.
@@ -27,6 +34,11 @@ Display usage information and exit.
 Test webhook deployment preparation for us-wa location:
 .nf
 Test-WebhookDeploymentPreparation --location us-wa
+.fi
+.PP
+Test with default location (zz-xy):
+.nf
+Test-WebhookDeploymentPreparation
 .fi
 .SH FILES
 The script creates and validates files in \fBwebhook.config/LOCATION/\fR

@@ -189,8 +189,6 @@ docker_compose := sudo \
 	PUID="$(WEBHOOK_PUID)" \
 	PGID="$(WEBHOOK_PGID)" \
 	AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-	AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-	AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
@@ -267,11 +265,6 @@ setup: ## Install dependencies and configure pre-commit for this repo
 test: ## Runs repository test scripts
 	$(MAKE) Test-WebhookDeploymentPreparation
 	$(MAKE) Test-WebhookReadiness
-	@if [[ "$(WEBHOOK_EXECUTOR_EXCLUDE)" == "true" ]]; then
-		echo "==> Skipping Test-WebhookExecutorIntegration because WEBHOOK_EXECUTOR_EXCLUDE=$(WEBHOOK_EXECUTOR_EXCLUDE)"
-	else
-		$(MAKE) Test-WebhookExecutorIntegration
-	fi
 	$(MAKE) Test-ShellFormatting
 	$(MAKE) Test-ShellScript
 
@@ -284,6 +277,9 @@ Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	@./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
 Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script against the webhook with JWT from Key Vault and configurable commands (separated by ;)
+	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
+	$(if $(WEBHOOK_SP),, $(error WEBHOOK_SP not set))
+
 	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
 
 	@if [[ ! -f "$$hooks_env" ]]; then
@@ -301,21 +297,6 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 		@echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
 		@exit 1
 	fi
-	@if [[ -z "$$AZURE_CLIENT_ID" ]]; then
-		@echo "Error: AZURE_CLIENT_ID not set in $$hooks_env"
-		@exit 1
-	fi
-	@if [[ -z "$$AZURE_TENANT_ID" ]]; then
-		@echo "Error: AZURE_TENANT_ID not set in $$hooks_env"
-		@exit 1
-	fi
-
-	@echo "==> Fetching JWT from Key Vault..."
-
-	@jwt=$$(./bin/Get-JsonWebToken --keyvault-url "$$WEBHOOK_KEYVAULT_URL" --secret-name "$$WEBHOOK_SECRET_NAME") || {
-		echo "Failed to fetch JWT"
-		exit 1
-	}
 
 	@echo "==> Running Test-WebhookExecutorIntegration with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
@@ -334,7 +315,10 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 	@./test/Test-WebhookExecutorIntegration \
 		--webhook-url "$(WEBHOOK_URL)$(WEBHOOK_EXECUTOR)" \
 		--destination "$$destination" \
-		--jwt "$$jwt" \
+		--keyvault-url "$$WEBHOOK_KEYVAULT_URL" \
+		--secret-name "$$WEBHOOK_SECRET_NAME" \
+		--service-principal-name "$(WEBHOOK_SP)" \
+		--service-principal-password "$(AZURE_CLIENT_SECRET)" \
 		$$cmd_args
 
 Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;)
@@ -387,27 +371,39 @@ Test-WebhookDeploymentPreparation:
 Test-WebhookReadiness:
 	@echo "==> Running Test-WebhookReadiness"
 	@echo "==> Setting up test environment: make clean New-Webhook Start-Webhook"
-	@$(MAKE) clean New-Webhook Start-Webhook
+	@$(MAKE) clean AZURE_CLIENT_SECRET=dummy New-Webhook Start-Webhook
 	@./test/Test-WebhookReadiness --container "$(CONTAINER_HOSTNAME)" --wait 2 || { echo "Test-WebhookReadiness failed"; exit 1; }
 
 ##@ Azure Authentication
-New-WebhookAzureAuth: ## Initialize Azure service principal authentication for webhook-executor
-	@if [[ -z "$(AZURE_CLIENT_ID)" ]]; then
-		@read -p "Enter AZURE_CLIENT_ID: " AZURE_CLIENT_ID
-	fi
-	@if [[ -z "$(AZURE_TENANT_ID)" ]]; then
-		@read -p "Enter AZURE_TENANT_ID: " AZURE_TENANT_ID
-	fi
-	@if [[ -z "$(AZURE_CLIENT_SECRET)" ]]; then
-		@read -s -p "Enter AZURE_CLIENT_SECRET: " AZURE_CLIENT_SECRET
-		@echo
-	fi
-	@if [[ -z "$(LOCATION)" ]]; then
-		@echo "Error: LOCATION must be set (e.g., make New-WebhookAzureAuth LOCATION=us-wa)"
-		@exit 1
-	fi
+New-WebhookAzureAuth: ## Initialize Azure service principal authentication for webhook-executor using service principal display name
+	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
+	$(if $(WEBHOOK_SP),, $(error WEBHOOK_SP not set))
+	$(if $(LOCATION),, $(error LOCATION not set))
+
 	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
 	@mkdir --parents "webhook.config/$(LOCATION)"
+
+	# Fetch AZURE_CLIENT_ID and AZURE_TENANT_ID from service principal display name
+
+	@AZURE_CLIENT_ID=$$(az ad sp list --display-name "$(WEBHOOK_SP)" --query "[0].appId" -o tsv)
+
+	@if [[ -z "$$AZURE_CLIENT_ID" ]]; then
+		echo "Error: Service principal '$(WEBHOOK_SP)' not found."
+		exit 1
+	fi
+
+	@AZURE_TENANT_ID=$$(az account show --query tenantId -o tsv)
+
+	@if [[ -z "$$AZURE_TENANT_ID" ]]; then
+		echo "Error: Unable to retrieve tenant ID."
+		exit 1
+	fi
+
+	@if grep --quiet "^.*WEBHOOK_SP=" "$$hooks_env" 2>/dev/null; then
+		@sed --in-place "s|^.*WEBHOOK_SP=.*|export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging|" "$$hooks_env"
+	else
+		@echo "export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging" >> "$$hooks_env"
+	fi
 	@if grep --quiet "^.*AZURE_CLIENT_ID=" "$$hooks_env" 2>/dev/null; then
 		@sed --in-place "s|^.*AZURE_CLIENT_ID=.*|export AZURE_CLIENT_ID=$$AZURE_CLIENT_ID|" "$$hooks_env"
 	else
@@ -418,18 +414,16 @@ New-WebhookAzureAuth: ## Initialize Azure service principal authentication for w
 	else
 		@echo "export AZURE_TENANT_ID=$$AZURE_TENANT_ID" >> "$$hooks_env"
 	fi
+
 	@echo "Azure authentication variables updated in $$hooks_env"
 	@echo "Note: AZURE_CLIENT_SECRET must be set at container runtime for security"
 	@echo "Validating Azure credentials..."
-	@if command -v az >/dev/null 2>&1; then
-		@if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
-			@echo "Azure credentials validated successfully"
-		else
-			@echo "Error: Azure credentials validation failed"
-			@exit 1
-		fi
+
+	@if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
+		@echo "Azure credentials validated successfully"
 	else
-		@echo "Warning: Azure CLI not available for validation. Ensure credentials are correct."
+		@echo "Error: Azure credentials validation failed"
+		@exit 1
 	fi
 
 ##@ Build and Create
@@ -460,12 +454,11 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	@cd "$(ssl_certificates_root)"
 	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
 	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
-	@chmod -R 600 $(ssl_certificates_root)
+	@chmod 600 * && chmod 700 .
 
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_command) ## Create container from existing image and prepare volumes
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
-	$(if $(AZURE_CLIENT_ID),, $(error AZURE_CLIENT_ID not set))
-	$(if $(AZURE_TENANT_ID),, $(error AZURE_TENANT_ID not set))
+	$(if $(LOCATION),, $(error LOCATION not set))
 
 	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
 		echo "An IP_RANGE is required for macvlan. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
@@ -479,7 +472,8 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 		fi
 	fi
 
-	$(docker_compose) stop && "$(project_root)/bin/New-DockerNetwork" --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
+	$(docker_compose) stop
+	"$(project_root)/bin/New-DockerNetwork" --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
 	$(docker_compose) create --force-recreate --pull never --remove-orphans
 	@sudo docker inspect "$(CONTAINER_HOSTNAME)"
 

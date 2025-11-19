@@ -2,45 +2,24 @@
 .\" SPDX-License-Identifier: MIT
 .TH Prepare-WebhookDeployment 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-Prepare-WebhookDeployment \- generate certificate request and Docker Compose YAML for a location
+Prepare-WebhookDeployment \- generate environment file, certificate request, and Docker Compose YAML for a location
 .SH SYNOPSIS
 Prepare-WebhookDeployment [OPTIONS]
 .SH DESCRIPTION
-Generates a certificate request (certificate-request.conf) and a Docker Compose YAML file (docker-LOCATION.yaml) for the specified LOCATION. Places the certificate request in secrets/certificates/LOCATION/ and the Compose YAML file in the workspace root.
-.SH ARGUMENTS
+Generates a webhook environment file (webhook-LOCATION.env), certificate request (certificate-request.conf), and a Docker Compose YAML file (webhook-LOCATION.yaml) for the specified LOCATION. Places the certificate request in webhook.config/LOCATION/ssl-certificates/ and the other files in the workspace root.
+.SH OPTIONS
 .TP
 .B --env-file <file>
-Load environment variables from a file. Variables in the file override command-line arguments.
-.TP
-.B --role <role>
-Set the role name (e.g., webhook, homebridge). Required.
+Load environment variables from a file. Variables in the file override defaults.
 .TP
 .B --location <location>
 Set the location name (e.g., us-wa). Required.
 .TP
-.B --country-code <code>
-Country code (default: US). Required.
-.TP
-.B --state-or-province <state>
-State or province (default: Washington). Required.
-.TP
-.B --city <city>
-City (default: Redmond). Required.
-.TP
-.B --organization-name <name>
-Organization name (default: The Noble Family). Required.
-.TP
-.B --organizational-unit <unit>
-Organizational unit (default: 5028 243rd Ave NE). Required.
-.TP
-.B --domain-name <domain>
-Domain name (default: home.thenoble.family). Required.
-.TP
-.B --email-address <email>
-Email address (default: network-admin@thenoble.family). Required.
-.TP
 .B -h, --help
 Show usage information and exit.
+.PP
+Other configuration values (country code, organization, etc.) are set via
+environment variables or use default values.
 .SH USAGE
 .RS
 .nf

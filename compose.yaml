@@ -12,8 +12,6 @@ services:
     restart: always
     environment:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
-      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
-      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
       WEBHOOK_PORT: ${WEBHOOK_PORT:-9000}
       PUID: ${WEBHOOK_PUID:-}
       PGID: ${WEBHOOK_GUID:-}

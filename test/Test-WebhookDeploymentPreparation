@@ -72,14 +72,10 @@ declare -r generated_env_file="webhook-${location}.env"
 declare -r generated_secrets_dir="webhook.config"
 declare -r generated_certificates_dir="${generated_secrets_dir}/${location}/ssl-certificates"
 
-# Remove any generated artifacts before starting
+note "Removing old generated artifacts..."
+rm --verbose -rf "${generated_secrets_dir:?}/${location:?}" "${generated_env_file:?}" "${generated_compose_file:?}"
 
-note "Removing old generated artifacts"
-rm --verbose -rf "${generated_certificates_dir}" "${generated_env_file}" "${generated_compose_file}"
-
-# Generate artifacts
-
-note "Generating artifacts with bin/Prepare-WebhookDeployment --env-file=${baseline_env_file}"
+note "Generating artifacts with bin/Prepare-WebhookDeployment --env-file=${baseline_env_file}..."
 echo >&2 && bin/Prepare-WebhookDeployment --env-file="${baseline_env_file}"
 make New-WebhookCertificates LOCATION="${location}"
 
