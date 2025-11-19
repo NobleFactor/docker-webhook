@@ -1,0 +1,33 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Test-ShellFormatting 1 "November 2025" "Test-ShellFormatting" "test"
+.SH NAME
+Test-ShellFormatting \- check shell script formatting with shfmt
+.SH SYNOPSIS
+.B Test-ShellFormatting
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B Test-ShellFormatting
+checks the formatting of shell scripts in the repository using \fBshfmt\fR.
+It scans for shell scripts and verifies they conform to standard formatting
+rules. The script requires \fBshfmt\fR to be installed.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXAMPLES
+Check shell script formatting:
+.nf
+Test-ShellFormatting
+.fi
+.SH EXIT STATUS
+The script exits with status 0 if all scripts are properly formatted, or
+non-zero if formatting issues are found or if \fBshfmt\fR is not available.
+.SH SEE ALSO
+.BR shfmt (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

@@ -1,0 +1,11 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Test-ShellScript
+_arguments \
+  '--help[Show usage information and exit]' \
+  '--paths[Paths to check for shell scripts]' \
+  '--recurse[Recurse into directories]' \
+  '--shellcheck[Path to shellcheck binary]'

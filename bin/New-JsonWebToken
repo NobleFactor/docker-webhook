@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# New-JsonWebToken - generate an HMAC-signed JWT from the command line
+# shellcheck source=bin/Declare-BashScript
+
+# Documentation is in the accompanying manual page: New-JsonWebToken(1).
+
+source "$(dirname "$0")/Declare-BashScript" "$0" "help,secret:,payload:,algorithm:" "hspa" "$@"
+
+if ! command -v openssl &>/dev/null; then
+    error 1 "openssl is required but not found in PATH."
+fi
+
+###########
+# Functions
+###########
+
+# Base64 URL encode
+base64url() {
+    openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n'
+}
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="New-JsonWebToken [--secret <secret>] [--payload <json>] [--algorithm <HS1|HS256|HS512>] [--help]"
+eval set -- "$script_arguments"
+
+[[ $* != -- ]] || usage "$synopsis"
+
+while :; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis" # does not return
+        shift 1
+        ;;
+    -a | --algorithm)
+        declare -r algorithm="$2"
+        shift 2
+        ;;
+    -p | --payload)
+        declare -r payload="$2"
+        shift 2
+        ;;
+    -s | --secret)
+        declare -r secret="$2"
+        shift 2
+        ;;
+    --)
+        shift 1
+        break
+        ;;
+    *)
+        error 1 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+# Defaults
+
+[[ -v algorithm ]] || declare -r algorithm="${algorithm:-HS512}"
+[[ -v payload ]] || declare -r payload="${payload:-{\"iat\":$(date +%s)}}"
+[[ -v secret ]] || declare -r secret=$(openssl rand -hex 128)
+
+# Validation
+
+[[ -n ${algorithm:-} ]] || error 2 "A non-blank value for algorithm is required."
+[[ -n ${payload:-} ]] || error 2 "A non-blank value for payload is required."
+[[ -n ${secret:-} ]] || error 2 "A non-blank value for secret is required."
+
+# Validate secret is valid hex
+
+if [[ ! $secret =~ ^[0-9a-fA-F]*$ ]]; then
+    error 2 "Secret must be a valid hexadecimal string."
+fi
+if [[ ${#secret} -ne 256 ]]; then
+    error 2 "Secret must be 256 hexadecimal characters (128 bytes)."
+fi
+
+###########
+# Main
+###########
+
+# Map algorithm to openssl digest
+
+case "$algorithm" in
+HS1 | hs1 | HSSHA1 | hmac-sha1) digest="sha1" ;;
+HS256 | hs256 | HSHA256 | hmac-sha256) digest="sha256" ;;
+HS512 | hs512 | HSHA512 | hmac-sha512) digest="sha512" ;;
+*)
+    error 1 "Unsupported algorithm: $algorithm"
+    ;;
+esac
+
+header="{\"alg\":\"$algorithm\",\"typ\":\"JWT\"}"
+
+encoded_header=$(echo -n "$header" | base64url)
+encoded_payload=$(echo -n "$payload" | base64url)
+
+signature=$(printf '%s.%s' "$encoded_header" "$encoded_payload" | openssl dgst -$digest -mac HMAC -macopt hexkey:"$secret" -binary | base64url)
+
+echo "$encoded_header.$encoded_payload.$signature"

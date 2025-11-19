@@ -1,0 +1,89 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH New-WebhookExecutorToken 1 "November 2025" "New-WebhookExecutorToken" "bin"
+.SH NAME
+New-WebhookExecutorToken \- generate a JWT token with a random secret and save both to Azure Key Vault
+.SH SYNOPSIS
+.B New-WebhookExecutorToken
+[\fB\-\-env-file\fR \fIENV_FILE\fR]
+[\fB\-\-algorithm\fR \fIALGORITHM\fR]
+[\fB\-\-keyvault-url\fR \fIKEYVAULT_URL\fR]
+[\fB\-\-location\fR \fILOCATION\fR]
+[\fB\-\-secret-name\fR \fISECRET_NAME\fR]
+[\fB\-\-token-name\fR \fITOKEN_NAME\fR]
+\fB\-\-permit-spn\fR \fISPN\fR
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B New-WebhookExecutorToken
+generates a JSON Web Token (JWT) with a random 128-byte shared secret,
+saves both the secret and the JWT to Azure Key Vault, and updates the
+\fBhooks.env\fR file for the specified \fBlocation\fR.
+.PP
+The script requires
+.BR az (1)
+(Azure CLI) and
+.BR openssl (1)
+to be installed. It will prompt for Azure login if not already authenticated.
+.SH OPTIONS
+.TP
+.BR \-\-env-file " \fIENV_FILE\fR"
+Load environment variables from the specified file. Recognized variables include
+\fBWEBHOOK_KEYVAULT_URL\fR, \fBWEBHOOK_SECRET_NAME\fR, \fBWEBHOOK_TOKEN_NAME\fR,
+\fBWEBHOOK_LOCATION\fR, \fBAZURE_CLIENT_ID\fR, and \fBAZURE_TENANT_ID\fR.
+.TP
+.BR \-\-algorithm " \fIALGORITHM\fR (default: HS512)"
+The HMAC algorithm to use for JWT signing. Supported values are \fBHS1\fR
+(SHA-1), \fBHS256\fR (SHA-256), or \fBHS512\fR (SHA-512).
+.TP
+.BR \-\-keyvault-url " \fIKEYVAULT_URL\fR (required)"
+The URL of the Azure Key Vault where secrets will be stored (e.g.,
+https://myvault.vault.azure.net).
+.TP
+.BR \-\-location " \fILOCATION\fR (required)"
+The location identifier for the webhook deployment (used in naming secrets and
+config files).
+.TP
+.BR \-\-secret-name " \fISECRET_NAME\fR (default: webhook-executor-LOCATION-secret)"
+The name of the Key Vault secret to store the random shared secret.
+.TP
+.BR \-\-token-name " \fITOKEN_NAME\fR (default: webhook-executor-LOCATION-token)"
+The name of the Key Vault secret to store the generated JWT.
+.TP
+.BR \-\-permit-spn " \fISPN\fR (required)"
+Grant the specified Azure service principal (by client ID) get permission on the
+secret in Key Vault.
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXAMPLES
+Generate JWT and save to Key Vault for location 'us-wa':
+.nf
+New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --permit-spn 12345678-1234-1234-1234-123456789012
+.fi
+.TP
+Use custom names and grant access to a service principal:
+.nf
+New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --secret-name my-secret --token-name my-token --permit-spn 12345678-1234-1234-1234-123456789012
+.fi
+.TP
+Load configuration from environment file:
+.nf
+New-WebhookExecutorToken --env-file webhook-us-wa.env --location us-wa
+.fi
+.SH EXIT STATUS
+The script exits with status 0 on success, or non-zero on error (e.g., missing
+required arguments, Azure authentication failure, or Key Vault access issues).
+.SH FILES
+.TP
+.I webhook.config/LOCATION/hooks.env
+Updated with Key Vault URL, secret name, and location variables.
+.SH SEE ALSO
+.BR az (1),
+.BR openssl (1),
+.BR New-JsonWebToken (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

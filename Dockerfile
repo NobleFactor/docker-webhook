@@ -148,16 +148,16 @@ RUN echo webhook > /etc/services.d/webhook/user
 RUN install --owner=root --group=root --mode=0755 /dev/stdin /etc/services.d/webhook/run <<'EOF'
 #!/bin/sh -e
 # shellcheck shell=sh
-if [ -f /usr/local/etc/webhook/hooks.env ]; then
-    . /usr/local/etc/webhook/hooks.env
+if [ -f "${WEBHOOK_CONFIG:-/usr/local/etc/webhook}/hooks.env" ]; then
+    . "${WEBHOOK_CONFIG:-/usr/local/etc/webhook}/hooks.env"
 fi
 exec webhook -verbose \
-	-hooks=/usr/local/etc/webhook/hooks.json \
+	-hooks="${WEBHOOK_CONFIG:-/usr/local/etc/webhook}/hooks.json" \
 	-port="${WEBHOOK_PORT:-9000}" \
 	-hotreload \
 	-secure \
-	-cert=/usr/local/etc/webhook/ssl-certificates/certificate.pem \
-	-key=/usr/local/etc/webhook/ssl-certificates/private-key.pem
+	-cert="${WEBHOOK_CONFIG:-/usr/local/etc/webhook}/ssl-certificates/certificate.pem" \
+	-key="${WEBHOOK_CONFIG:-/usr/local/etc/webhook}/ssl-certificates/private-key.pem"
 EOF
 
 ##### log
@@ -169,6 +169,7 @@ EOF
 ### Setup container environment
 
 ENV         WEBHOOK_PORT=${webhook_port}
+ENV         WEBHOOK_CONFIG=/usr/local/etc/webhook
 VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 

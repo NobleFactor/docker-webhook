@@ -1,0 +1,6 @@
+#!/bin/bash
+# Test script for webhook-executor-destination
+echo "Webhook destination test script executed successfully"
+echo "Current date: $(date)"
+echo "User: $(whoami)"
+echo "Uptime: $(uptime)"

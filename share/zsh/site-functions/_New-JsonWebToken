@@ -1,0 +1,11 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef New-JsonWebToken
+_arguments \
+  '--secret[Shared secret key for HMAC signing]' \
+  '--payload[JSON payload for JWT]' \
+  '--algorithm[HMAC algorithm (HS1, HS256, HS512)]' \
+  '--help[Show usage information and exit]'

@@ -1,0 +1,84 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Test-WebhookExecutorIntegration 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Test-WebhookExecutorIntegration \- black-box API test for webhook-executor responses via webhook service
+.SH SYNOPSIS
+.B Test-WebhookExecutorIntegration
+\fI--destination\fR \fIDESTINATION\fR \fI--webhook-url\fR \fIURL\fR \fI--keyvault-url\fR \fIURL\fR \fI--secret-name\fR \fINAME\fR \fI--service-principal-name\fR \fINAME\fR \fI--service-principal-password\fR \fIPASSWORD\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+.SH DESCRIPTION
+Test-WebhookExecutorIntegration is a black-box test script that validates the API responses
+from webhook-executor hooks in a running webhook deployment via the webhook service using hooks.json routing. It fetches Azure service principal credentials and JWT from Key Vault, then performs HTTP GET requests
+to the specified webhook URL with command execution parameters and JWT authentication,
+verifying that the JSON responses conform to the expected schema.
+
+The script is designed for testing webhook-executor functionality without inspecting
+container internals, focusing solely on API behavior. It measures test execution time
+and reports pass/fail counts for each tested command.
+
+For each command specified:
+.IP "-" 2
+Sends a GET request to \fIwebhook-url\fR?hostname=\fItarget-host\fR&command=\fIcmd\fR
+.IP "-" 2
+Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
+.IP "-" 2
+Reports success or failure with detailed output
+
+The test requires a running webhook instance with webhook-executor configured hooks.
+See the API Reference section in README.md for complete response schema documentation.
+.SH OPTIONS
+.TP
+.B -h,--help
+Display usage information and exit.
+.TP
+.B --command CMD
+Required. One or more commands to execute and test. Each command is sent as a separate
+request. Commands should be simple shell commands that produce predictable output.
+.TP
+.B --destination DESTINATION
+Required. The hostname parameter sent in webhook requests, typically the target machine
+for command execution.
+.TP
+.B --webhook-url URL
+Required. The full URL of the webhook endpoint to test, including protocol, host, port,
+and path (e.g., https://localhost:9000/hooks/remote-mac).
+.TP
+.B --keyvault-url URL
+Required. The URL of the Azure Key Vault containing the JWT secret.
+.TP
+.B --secret-name NAME
+Required. The name of the secret in Key Vault that contains the JWT.
+.TP
+.B --service-principal-name NAME
+Required. The display name of the Azure service principal used for authentication.
+.TP
+.B --service-principal-password PASSWORD
+Required. The client secret of the Azure service principal.
+.SH EXIT STATUS
+The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
+failures are reported but do not immediately terminate the script; all specified commands
+are tested.
+.SH EXAMPLES
+Test a single command on a local webhook:
+.IP
+Test-WebhookExecutorIntegration --webhook-url https://localhost:9000/hooks/remote-mac --destination example.com --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command uptime
+
+Test multiple commands:
+.IP
+Test-WebhookExecutorIntegration --webhook-url https://webhook.example.com/hooks/execute --destination server.local --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command "echo hello" --command "date" --command "whoami"
+
+Test with a remote webhook endpoint:
+.IP
+Test-WebhookExecutorIntegration --webhook-url https://api.company.com/webhooks/exec --destination production-server --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command "systemctl status nginx"
+.SH SEE ALSO
+.BR README.md (API Reference),
+.BR docker-webhook (1),
+.BR webhook-executor (1),
+.BR Test-WebhookExecutorStandalone (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.</content>
+<parameter name="filePath">/Users/david-noble/Workspace/NobleFactor/docker-webhook/share/man/man1/Test-DockerWebhookDeployment.1

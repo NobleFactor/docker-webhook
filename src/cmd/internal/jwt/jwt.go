@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -8,8 +9,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// ValidateJWT checks the token using the provided secret
-func ValidateJWT(authHeader string, secret []byte) bool {
+// ValidateJWT checks the token using the provided secret and expected location
+func ValidateJWT(authHeader string, secretHex string, expectedLocation string) bool {
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 	tokenStr = strings.TrimSpace(tokenStr)
 	if tokenStr == "" {
@@ -20,7 +21,11 @@ func ValidateJWT(authHeader string, secret []byte) bool {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return secret, nil
+		secretBytes, err := hex.DecodeString(secretHex)
+		if err != nil {
+			return nil, err
+		}
+		return secretBytes, nil
 	})
 
 	if err != nil || !token.Valid {
@@ -35,7 +40,12 @@ func ValidateJWT(authHeader string, secret []byte) bool {
 			}
 		}
 		if iss, ok := claims["iss"].(string); ok {
-			if iss != "my-service" {
+			if iss != "webhook-executor" {
+				return false
+			}
+		}
+		if expectedLocation != "" {
+			if sub, ok := claims["sub"].(string); !ok || sub != expectedLocation {
 				return false
 			}
 		}

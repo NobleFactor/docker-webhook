@@ -1,0 +1,28 @@
+# Dockerfile for webhook-executor destination container
+FROM debian:trixie-slim
+
+# Install OpenSSH server
+RUN apt-get update && apt-get install -y openssh-server && rm -rf /var/lib/apt/lists/*
+
+# Create the web-executor-destination user
+RUN useradd -m -s /bin/bash web-executor-destination
+
+# Configure SSH
+RUN <<EOF
+mkdir -p /home/web-executor-destination/.ssh /usr/local/etc/webhook/ssh
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+EOF
+
+# Copy test script
+COPY data/webhook-executor-destination/test-webhook-destination /usr/local/bin/test-webhook-destination
+RUN chmod +x /usr/local/bin/test-webhook-destination
+
+# Entrypoint script to fetch and authorize the key
+COPY data/webhook-executor-destination/entrypoint /entrypoint
+RUN chmod +x /entrypoint
+
+EXPOSE 22
+
+ENTRYPOINT ["/entrypoint"]

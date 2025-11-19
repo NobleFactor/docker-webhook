@@ -11,15 +11,12 @@ services:
         ipv4_address: ${IP_ADDRESS:-}
     restart: always
     environment:
-      NOBLEFACTOR_LOCATION: ${LOCATION}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
       WEBHOOK_PORT: ${WEBHOOK_PORT:-9000}
       PUID: ${WEBHOOK_PUID:-}
       PGID: ${WEBHOOK_GUID:-}
-      WEBHOOK_KEYVAULT_URL: ${WEBHOOK_KEYVAULT_URL:-}
-      WEBHOOK_SECRET_NAME: ${WEBHOOK_SECRET_NAME:-}
-      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
     healthcheck:
-      test: ["CMD-SHELL", "http_status=$(curl --silent -I http://localhost:${WEBHOOK_PORT:-9000}/ | head -n 1 | sed 's/HTTP\\/[^ ]* //') ; if [[ \"$http_status\" == 200* ]]; then echo \"$http_status\"; exit 0; else echo \"$http_status\"; exit 1; fi"]
+      test: ["CMD-SHELL", "http_status=$$(curl --silent -I http://localhost:$${WEBHOOK_PORT:-9000}/ | head -n 1 | sed 's/HTTP\\\\/[^ ]* //') ; if [[ \"$$http_status\" == 200* ]]; then echo \"$$http_status\"; exit 0; else echo \"$$http_status\"; exit 1; fi"]
       interval: 60s
       retries: 5
       start_period: 300s

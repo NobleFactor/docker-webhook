@@ -1,0 +1,45 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Get-JsonWebToken 1 "November 2025" "Get-JsonWebToken" "bin"
+.SH NAME
+Get-JsonWebToken \- fetch JWT token from Azure Key Vault
+.SH SYNOPSIS
+.B Get-JsonWebToken
+[\fB\-\-keyvault-url\fR \fIKEYVAULT_URL\fR]
+[\fB\-\-secret-name\fR \fISECRET_NAME\fR]
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B Get-JsonWebToken
+fetches a JWT token stored as a secret in Azure Key Vault and outputs it to
+stdout. The script requires the Azure CLI (\fBaz\fR) to be installed and
+authenticated.
+.PP
+The Key Vault URL should be in the format
+\fBhttps://<vault-name>.vault.azure.net\fR.
+.SH OPTIONS
+.TP
+.BR \-\-keyvault-url " \fIKEYVAULT_URL\fR (required)"
+The URL of the Azure Key Vault containing the secret.
+.TP
+.BR \-\-secret-name " \fISECRET_NAME\fR (required)"
+The name of the secret containing the JWT token.
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXAMPLES
+Fetch a JWT token from Key Vault:
+.nf
+Get-JsonWebToken --keyvault-url https://myvault.vault.azure.net --secret-name my-jwt-secret
+.fi
+.SH EXIT STATUS
+The script exits with status 0 on success, or non-zero on error (e.g., missing
+arguments, Azure authentication failure, or Key Vault access issues).
+.SH SEE ALSO
+.BR az (1),
+.BR New-JsonWebToken (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.
