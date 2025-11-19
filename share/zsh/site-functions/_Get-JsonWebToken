@@ -1,0 +1,10 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Get-JsonWebToken
+_arguments \
+  '--keyvault-url[Azure Key Vault URL]' \
+  '--secret-name[Name of the secret containing the JWT]' \
+  '--help[Show usage information and exit]'

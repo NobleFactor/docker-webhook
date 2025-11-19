@@ -1,0 +1,19 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+_test_shell_script_completions()
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="--help --paths --recurse --shellcheck"
+
+    if [[ ${cur} == -* ]] ; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -F _test_shell_script_completions Test-ShellScript

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -63,7 +64,11 @@ func ExecuteRemoteCommand(destination, command string) Response {
 
 	// Load private key
 
-	keyPath := "/usr/local/etc/webhook/ssh/id_rsa"
+	configDir := os.Getenv("WEBHOOK_CONFIG")
+	if configDir == "" {
+		configDir = "/usr/local/etc/webhook"
+	}
+	keyPath := filepath.Join(configDir, "ssh", "id_rsa")
 
 	keyBytes, err := os.ReadFile(keyPath)
 	if err != nil {
@@ -90,7 +95,14 @@ func ExecuteRemoteCommand(destination, command string) Response {
 
 	// Connect
 
-	conn, err := ssh.Dial("tcp", host+":22", config)
+	var address string
+	if strings.Contains(host, ":") {
+		address = host
+	} else {
+		address = host + ":22"
+	}
+
+	conn, err := ssh.Dial("tcp", address, config)
 	if err != nil {
 		errorMsg := "Failed to connect: " + err.Error()
 		return Response{Error: &errorMsg, Status: -1, Reason: "SSH Error"}

@@ -46,13 +46,14 @@ WEBHOOK_EXECUTOR_EXCLUDE     ?= false
 WEBHOOK_JWT_ALGORITHM        ?= HS512
 WEBHOOK_JWT_PAYLOAD          ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+1 hour" +%s)}
 WEBHOOK_KEYVAULT_URL         ?=
-WEBHOOK_SECRET_NAME          ?=
+WEBHOOK_SECRET_NAME          ?= webhook-executor-$(LOCATION)-secret
+WEBHOOK_TOKEN_NAME           ?= webhook-executor-$(LOCATION)-token
 
 ### Azure Authentication Variables
 
-AZURE_CLIENT_ID          ?=
-AZURE_CLIENT_SECRET      ?=
-AZURE_TENANT_ID          ?=
+AZURE_CLIENT_SECRET ?=
+AZURE_CLIENT_ID     ?=
+AZURE_TENANT_ID     ?=
 
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
@@ -182,11 +183,13 @@ docker_compose := sudo \
     CONTAINER_HOSTNAME="$(CONTAINER_HOSTNAME)" \
     CONTAINER_DOMAIN_NAME="$(CONTAINER_DOMAIN_NAME)" \
     NETWORK_NAME="$(network_name)" \
-    WEBHOOK_IMAGE="${IMAGE}" \
+    WEBHOOK_IMAGE="$(IMAGE)" \
     WEBHOOK_PORT="$(WEBHOOK_PORT)" \
-	WEBHOOK_PUID="${WEBHOOK_PUID}" \
-	WEBHOOK_PGID="${WEBHOOK_PGID}" \
-	AZURE_CLIENT_SECRET="${AZURE_CLIENT_SECRET}" \
+	PUID="$(WEBHOOK_PUID)" \
+	PGID="$(WEBHOOK_PGID)" \
+	AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+	AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+	AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
@@ -208,7 +211,8 @@ HELP_COLWIDTH ?= 28
 	Test-ShellFormatting \
 	Test-ShellScript \
 	Test-WebhookDeploymentPreparation \
-	Test-WebhookExecutor \
+	Test-WebhookExecutorIntegration \
+	Test-WebhookExecutorStandalone \
 	Test-WebhookReadiness \
 	Update-WebhookKeys \
 	Update-WebhookCertificates \
@@ -263,9 +267,9 @@ test: ## Runs repository test scripts
 	$(MAKE) Test-WebhookDeploymentPreparation
 	$(MAKE) Test-WebhookReadiness
 	@if [[ "$(WEBHOOK_EXECUTOR_EXCLUDE)" == "true" ]]; then
-		echo "==> Skipping Test-WebhookExecutor because WEBHOOK_EXECUTOR_EXCLUDE=$(WEBHOOK_EXECUTOR_EXCLUDE)"
+		echo "==> Skipping Test-WebhookExecutorIntegration because WEBHOOK_EXECUTOR_EXCLUDE=$(WEBHOOK_EXECUTOR_EXCLUDE)"
 	else
-		$(MAKE) Test-WebhookExecutor
+		$(MAKE) Test-WebhookExecutorIntegration
 	fi
 	$(MAKE) Test-ShellFormatting
 	$(MAKE) Test-ShellScript
@@ -278,7 +282,7 @@ Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	@echo "==> Running Test-ShellScript"
 	@./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
-Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook with JWT from Key Vault and configurable commands (separated by ;)
+Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script against the webhook with JWT from Key Vault and configurable commands (separated by ;)
 	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
 
 	@if [[ ! -f "$$hooks_env" ]]; then
@@ -307,12 +311,12 @@ Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook wit
 
 	@echo "==> Fetching JWT from Key Vault..."
 
-	@jwt=$$(./bin/Get-JwtToken --keyvault-url "$$WEBHOOK_KEYVAULT_URL" --secret-name "$$WEBHOOK_SECRET_NAME") || {
+	@jwt=$$(./bin/Get-JsonWebToken --keyvault-url "$$WEBHOOK_KEYVAULT_URL" --secret-name "$$WEBHOOK_SECRET_NAME") || {
 		echo "Failed to fetch JWT"
 		exit 1
 	}
 
-	@echo "==> Running Test-WebhookExecutor with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
+	@echo "==> Running Test-WebhookExecutorIntegration with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
 	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
 
@@ -326,8 +330,61 @@ Test-WebhookExecutor: ## Run Test-WebhookExecutor script against the webhook wit
 		@cmd_args="$$cmd_args --command $$cmd"
 	done
 
-	@./test/Test-WebhookExecutor \
+	@./test/Test-WebhookExecutorIntegration \
 		--webhook-url "$(WEBHOOK_URL)$(WEBHOOK_EXECUTOR)" \
+		--destination "$$destination" \
+		--jwt "$$jwt" \
+		$$cmd_args
+
+Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;)
+	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
+
+	@if [[ ! -f "$$hooks_env" ]]; then
+		@echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config."
+		@exit 1
+	fi
+
+	@source "$$hooks_env"
+
+	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
+		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
+		@exit 1
+	fi
+	@if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
+		@echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
+		@exit 1
+	fi
+	@if [[ -z "$$AZURE_CLIENT_ID" ]]; then
+		@echo "Error: AZURE_CLIENT_ID not set in $$hooks_env"
+		@exit 1
+	fi
+	@if [[ -z "$$AZURE_TENANT_ID" ]]; then
+		@echo "Error: AZURE_TENANT_ID not set in $$hooks_env"
+		@exit 1
+	fi
+
+	@echo "==> Fetching JWT from Key Vault..."
+
+	@jwt=$$(./bin/Get-JsonWebToken --keyvault-url "$$WEBHOOK_KEYVAULT_URL" --secret-name "$$WEBHOOK_SECRET_NAME") || {
+		echo "Failed to fetch JWT"
+		exit 1
+	}
+
+	@echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
+
+	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
+
+	@if [[ -z "$$destination" ]]; then 
+		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
+	fi
+
+	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
+	@cmd_args=""
+	@for cmd in "$${cmds[@]}"; do
+		@cmd_args="$$cmd_args --command $$cmd"
+	done
+
+	@./test/Test-WebhookExecutorStandalone \
 		--destination "$$destination" \
 		--jwt "$$jwt" \
 		$$cmd_args
@@ -412,8 +469,12 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	@cd "$(ssl_certificates_root)"
 	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
 	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
+	@chmod -R 600 $(ssl_certificates_root)
 
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_command) ## Create container from existing image and prepare volumes
+	$(if $(AZURE_CLIENT_ID),, $(error AZURE_CLIENT_ID not set))
+	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
+	$(if $(AZURE_TENANT_ID),, $(error AZURE_TENANT_ID not set))
 
 	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
 		echo "An IP_RANGE is required for macvlan. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
@@ -435,50 +496,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
-	@if ! az account show >/dev/null 2>&1; then
-		@echo "Not logged in to Azure. Running az login..."
-		@az login
-	fi
-	@echo "==> Generating JWT token and saving to Azure Key Vault"
-	@if [[ -z "$(WEBHOOK_JWT_ALGORITHM)" ]]; then
-		@echo "Error: WEBHOOK_JWT_ALGORITHM is required"
-		@exit 1
-	fi
-	@if [[ -z "$(WEBHOOK_JWT_PAYLOAD)" ]]; then
-		@echo "Error: WEBHOOK_JWT_PAYLOAD is required"
-		@exit 1
-	fi
-	@if [[ -z "$(WEBHOOK_KEYVAULT_URL)" ]]; then
-		@echo "Error: WEBHOOK_KEYVAULT_URL is required"
-		@exit 1
-	fi
-	@if [[ -z "$(WEBHOOK_SECRET_NAME)" ]]; then
-		@echo "Error: WEBHOOK_SECRET_NAME is required"
-		@exit 1
-	fi
-	@secret=$$(openssl rand -hex 128)
-	@vault_name=$$(echo "$(WEBHOOK_KEYVAULT_URL)" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
-	@jwt=$$(bin/New-JwtToken --secret "$$secret" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)")
-	@echo "Generated JWT: $$jwt"
-	@az keyvault secret set --vault-name "$$vault_name" --name "$(WEBHOOK_SECRET_NAME)" --value "$$jwt"
-	@echo "==> Updating webhook.config/$(LOCATION)/hooks.env"
-	@mkdir -p "webhook.config/$(LOCATION)"
-	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
-	if [[ -f "$$hooks_env" ]]; then
-		if grep -q "^.*WEBHOOK_KEYVAULT_URL=" "$$hooks_env"; then
-			@sed -i "s|^.*WEBHOOK_KEYVAULT_URL=.*|export WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)|" "$$hooks_env"
-		else
-			@echo "export WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" >> "$$hooks_env"
-		fi
-		if grep -q "^.*WEBHOOK_SECRET_NAME=" "$$hooks_env"; then
-			@sed -i "s|^.*WEBHOOK_SECRET_NAME=.*|export WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)|" "$$hooks_env"
-		else
-			@echo "export WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
-		fi
-	else
-		@echo "export WEBHOOK_KEYVAULT_URL=$(WEBHOOK_KEYVAULT_URL)" > "$$hooks_env"
-		@echo "export WEBHOOK_SECRET_NAME=$(WEBHOOK_SECRET_NAME)" >> "$$hooks_env"
-	fi
+	@./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)" --location "$(LOCATION)"
 
 New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
@@ -497,6 +515,7 @@ New-WebhookImage: ## Build the Webhook image only
 New-WebhookKeys: ## Generate SSH keys for LOCATION
 	@mkdir --parent $(ssh_keys_root)
 	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
+	@chmod -R 600 $(ssh_keys_root)
 
 ##@ Lifecycle
 Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ## Restart container

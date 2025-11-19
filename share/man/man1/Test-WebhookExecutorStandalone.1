@@ -1,0 +1,69 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Test-WebhookExecutorStandalone 1 "November 2025" "docker-webhook" "User Commands"
+.SH NAME
+Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary directly
+.SH SYNOPSIS
+.B Test-WebhookExecutorStandalone
+\fI--location\fR \fILOCATION\fR \fI--token-name\fR \fITOKEN_NAME\fR \fI--destination\fR \fIDESTINATION\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+.SH DESCRIPTION
+Test-WebhookExecutorStandalone is a black-box test script that validates the responses
+from the webhook-executor binary directly. It sources the hooks environment file for the specified location,
+fetches the JWT token from Azure Key Vault, and runs the Go binary with command execution parameters and JWT authentication,
+verifying that the JSON responses conform to the expected schema.
+
+The script is designed for testing webhook-executor functionality without the webhook service,
+focusing on direct binary execution. It measures test execution time
+and reports pass/fail counts for each tested command.
+
+For each command specified:
+.IP "-" 2
+Runs the webhook-executor binary with --destination, --command, --authorization
+.IP "-" 2
+Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
+.IP "-" 2
+Reports success or failure with detailed output
+
+The test requires the webhook-executor binary to be available and environment variables set for Key Vault access.
+See the API Reference section in README.md for complete response schema documentation.
+.SH OPTIONS
+.TP
+.B -h,--help
+Display usage information and exit.
+.TP
+.B --command CMD
+Required. One or more commands to execute and test. Each command is sent as a separate
+request. Commands should be simple shell commands that produce predictable output.
+.TP
+.B --destination DESTINATION
+Required. The SSH destination for command execution (e.g., user@host).
+.TP
+.B --location LOCATION
+Required. The location identifier (e.g., us-wa) used to source the hooks environment file
+from webhook.config/LOCATION/hooks.env.
+.TP
+.B --token-name TOKEN_NAME
+Required. The name of the secret in Azure Key Vault containing the JWT token for authentication.
+.SH EXIT STATUS
+The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
+failures are reported but do not immediately terminate the script; all specified commands
+are tested.
+.SH EXAMPLES
+Test a single command directly:
+.IP
+Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --destination user@host --command uptime
+
+Test multiple commands:
+.IP
+Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --destination server.local --command "echo hello" --command "date" --command "whoami"
+.SH SEE ALSO
+.BR README.md (API Reference),
+.BR docker-webhook (1),
+.BR webhook-executor (1),
+.BR Test-WebhookExecutorIntegration (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

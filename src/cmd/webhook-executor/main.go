@@ -16,6 +16,7 @@ import (
 var (
 	keyVaultURL = os.Getenv("WEBHOOK_KEYVAULT_URL") // Azure key vault URL
 	secretName  = os.Getenv("WEBHOOK_SECRET_NAME")  // Name of the secret storing JWT signing key
+	location    = os.Getenv("WEBHOOK_LOCATION")     // Expected location for JWT subject
 	jwtSecret   []byte                              // Cached secret retrieved from Azure key vault
 )
 
@@ -37,7 +38,7 @@ func main() {
 
 	log.SetPrefix(fmt.Sprintf("[%s] ", correlationId))
 
-	log.Printf("Arguments parsed successfully: destination=%s, command=%s", parsed.Destination, parsed.Command)
+	log.Printf("Arguments parsed successfully: destination=%s, command=%s, client-ips=%v", parsed.Destination, parsed.Command, parsed.ClientIps)
 
 	targetCmd := parsed.Destination
 	command := parsed.Command
@@ -57,7 +58,7 @@ func main() {
 
 	// Validate JWT (required)
 
-	if !jwt.ValidateJWT(authHeader, jwtSecret) {
+	if !jwt.ValidateJWT(authHeader, string(jwtSecret), location) {
 		prefix := authHeader
 		if len(authHeader) > 10 {
 			prefix = authHeader[:10]

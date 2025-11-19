@@ -1,0 +1,45 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Test-WebhookDeploymentPreparation 1 "November 2025" "Test-WebhookDeploymentPreparation" "test"
+.SH NAME
+Test-WebhookDeploymentPreparation \- automated test for Docker location-based artifact and certificate generation
+.SH SYNOPSIS
+.B Test-WebhookDeploymentPreparation
+[\fB\-\-location\fR \fILOCATION\fR]
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B Test-WebhookDeploymentPreparation
+performs automated testing of the Docker webhook deployment preparation
+process for a specified location. It generates and validates artifacts,
+certificates, and configuration files required for webhook deployment.
+.PP
+The script tests the complete workflow of preparing a webhook deployment,
+including SSL certificate generation, Docker network setup, and configuration
+file creation.
+.SH OPTIONS
+.TP
+.BR \-\-location " \fILOCATION\fR (required)"
+The location identifier for the webhook deployment to test (e.g., us-wa).
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.SH EXAMPLES
+Test webhook deployment preparation for us-wa location:
+.nf
+Test-WebhookDeploymentPreparation --location us-wa
+.fi
+.SH FILES
+The script creates and validates files in \fBwebhook.config/LOCATION/\fR
+including SSL certificates, hooks configuration, and deployment artifacts.
+.SH EXIT STATUS
+The script exits with status 0 if all tests pass, or non-zero if any
+validation fails or required components are missing.
+.SH SEE ALSO
+.BR Prepare-WebhookDeployment (1),
+.BR New-DockerNetwork (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

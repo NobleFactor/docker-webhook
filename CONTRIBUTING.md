@@ -60,7 +60,7 @@ Before contributing, ensure you have the following installed:
 
 The project uses a Makefile-based workflow. Key directories:
 
-- `bin/`: Scripts like `New-JwtToken` and `Declare-BashScript`
+- `bin/`: Scripts like `New-JsonWebToken` and `Declare-BashScript`
 - `webhook.config/`: Configuration files for deployments
 - `docs/`: Documentation and man pages
 - `test/`: Test scripts
@@ -125,7 +125,7 @@ Branch naming conventions:
 
 - Run the full test suite: `make test`
 - Test Docker builds: `make New-WebhookImage`
-- For JWT features: Test `bin/New-JwtToken` with various options
+- For JWT features: Test `bin/New-JsonWebToken` with various options
 - Manual testing: Use `make Start-Webhook` for integration tests
 
 ### 5. Commit Changes

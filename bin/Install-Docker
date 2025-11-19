@@ -37,9 +37,8 @@ while :; do
     [[ $# -eq 0 ]] && break
 done
 
-set -o errexit -o nounset
-
 ## Ensure all conflicting packages are absent
+
 for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
     if dpkg --list "$pkg"; then
         sudo apt-get --yes remove "$pkg"

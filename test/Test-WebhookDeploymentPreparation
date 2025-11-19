@@ -50,7 +50,7 @@ while :; do
     [[ $# -eq 0 ]] && break
 done
 
-[[ -n "${location:-}" ]] || declare -r location="zz-xy"
+[[ -v location ]] || declare -r location="zz-xy"
 
 ############
 # Main

@@ -1,0 +1,12 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef Test-WebhookExecutorIntegration
+_arguments \
+  '--command[Command to execute]' \
+  '--jwt[JWT token]' \
+  '--destination[Destination for test]' \
+  '--webhook-url[Webhook service URL]' \
+  '--help[Show usage information and exit]'

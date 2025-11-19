@@ -1,0 +1,54 @@
+.\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
+.\" SPDX-License-Identifier: MIT
+.TH Test-ShellScript 1 "November 2025" "Test-ShellScript" "test"
+.SH NAME
+Test-ShellScript \- find shell scripts and run shellcheck on them
+.SH SYNOPSIS
+.B Test-ShellScript
+[\fB\-\-help\fR]
+[\fB\-\-paths\fR \fIPATHS\fR]
+[\fB\-\-recurse\fR]
+[\fB\-\-shellcheck\fR \fISHELLCHECK\fR]
+.SH DESCRIPTION
+.B Test-ShellScript
+finds shell scripts in the specified paths by examining their shebang lines
+and runs \fBshellcheck\fR on them to detect potential issues. By default, it
+scans the current directory.
+.PP
+The script requires \fBshellcheck\fR to be installed for linting.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Display usage information and exit.
+.TP
+.BR \-\-paths " \fIPATHS\fR"
+Comma-separated list of paths to search for shell scripts. Defaults to current
+directory if not specified.
+.TP
+.BR \-\-recurse
+Recursively search subdirectories for shell scripts.
+.TP
+.BR \-\-shellcheck " \fISHELLCHECK\fR"
+Path to the \fBshellcheck\fR binary. Uses system default if not specified.
+.SH EXAMPLES
+Check shell scripts in the current directory:
+.nf
+Test-ShellScript
+.fi
+.TP
+Check scripts in specific paths recursively:
+.nf
+Test-ShellScript --paths src,bin --recurse
+.fi
+.SH EXIT STATUS
+The script exits with status 0 if no issues are found, or non-zero if
+shellcheck reports problems or if required tools are missing.
+.SH SEE ALSO
+.BR shellcheck (1),
+.BR find (1)
+.SH AUTHOR
+David Noble
+.SH COPYRIGHT
+Copyright \(co 2016-2025 Noble Factor.
+.br
+Licensed under the MIT License.

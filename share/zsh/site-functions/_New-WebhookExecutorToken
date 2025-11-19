@@ -1,0 +1,15 @@
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+#compdef New-WebhookExecutorToken
+_arguments \
+  '--env-file[Load environment variables from a file]' \
+  '--algorithm[HMAC algorithm for JWT signing (default: HS512)]' \
+  '--keyvault-url[Azure Key Vault URL]' \
+  '--location[Webhook deployment location]' \
+  '--secret-name[Key Vault secret name for shared secret]' \
+  '--token-name[Key Vault secret name for JWT]' \
+  '--permit-spn[Grant service principal access to secret]' \
+  '--help[Show usage information and exit]'

@@ -264,7 +264,7 @@ For secure webhook validation, use HMAC with JWT tokens:
 1. Generate a JWT token:
 
    ```bash
-   docker run --rm noblefactor/docker-webhook /bin/New-JwtToken --secret "your-secret" --algorithm HS512
+   docker run --rm noblefactor/docker-webhook /bin/New-JsonWebToken --secret "your-secret" --algorithm HS512
    ```
 
 2. Store the token in Azure Key Vault

@@ -145,9 +145,10 @@ CLI Arguments → Argument Parsing → JWT Validation → SSH Execution → Resp
 
 #### Argument Parsing
 
-- Supports command-line flags: `--destination`, `--command`, `--jwt`, `--correlation-id`
+- Supports command-line flags: `--destination`, `--command`, `--jwt`, `--correlation-id`, `--X-Forwarded-For`
 - Auto-generates UUID v4 correlation IDs if not provided
 - Validates required parameters
+- `--X-Forwarded-For`: Client IP chain from X-Forwarded-For header for security logging, parses comma-separated IPs and validates each
 
 #### JWT Validation
 
@@ -199,8 +200,19 @@ Returns JSON with consistent schema:
 ### Usage Example
 
 ```bash
-./webhook-executor --destination user@host --command "echo hello" --jwt eyJ0eXAi...
+./webhook-executor --destination user@host --command "echo hello" --jwt eyJ0eXAi... --X-Forwarded-For "203.0.113.1,198.51.100.1"
 ```
+
+**Webhook Configuration**: The webhook passes client IP chain via `X-Forwarded-For` header:
+
+```json
+{
+  "source": "header",
+  "name": "X-Forwarded-For"
+}
+```
+
+This passes `--X-Forwarded-For "<ip-chain>"` which webhook-executor parses into validated net.IP array for audit trails, extracting the first valid IP as the client IP.
 
 Output:
 

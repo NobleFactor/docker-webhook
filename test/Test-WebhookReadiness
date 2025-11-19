@@ -43,7 +43,7 @@ while :; do
     esac
 done
 
-[[ -n ${wait_seconds:-} ]] || declare wait_seconds=2
+[[ -v wait_seconds ]] || declare wait_seconds=2
 
 declare -r image="${default_image}"
 
