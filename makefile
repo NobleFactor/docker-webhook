@@ -363,13 +363,6 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 		@exit 1
 	fi
 
-	@echo "==> Fetching JWT from Key Vault..."
-
-	@jwt=$$(./bin/Get-JsonWebToken --keyvault-url "$$WEBHOOK_KEYVAULT_URL" --secret-name "$$WEBHOOK_SECRET_NAME") || {
-		echo "Failed to fetch JWT"
-		exit 1
-	}
-
 	@echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
 	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
@@ -385,8 +378,9 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 	done
 
 	@./test/Test-WebhookExecutorStandalone \
+		--location "$(LOCATION)" \
+		--token-name "$(WEBHOOK_TOKEN_NAME)" \
 		--destination "$$destination" \
-		--jwt "$$jwt" \
 		$$cmd_args
 
 Test-WebhookDeploymentPreparation:

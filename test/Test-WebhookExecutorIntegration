@@ -89,6 +89,15 @@ done
 # Main
 ###########
 
+if docker ps -a --filter name=webhook-executor-destination --format "{{.Names}}" | grep -q webhook-executor-destination; then
+    if ! docker ps --filter name=webhook-executor-destination --format "{{.Names}}" | grep -q webhook-executor-destination; then
+        sudo docker start webhook-executor-destination
+    fi
+else
+    sudo docker build -t webhook-executor-image -f Dockerfile.webhook-executor-destination .
+    sudo docker run -d --name webhook-executor-destination webhook-executor-image
+fi
+
 declare -r start_time=$(date +%s)
 
 note "Starting webhook deployment tests for destination: $destination"
