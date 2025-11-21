@@ -197,6 +197,13 @@ A test script `test/Test-WebhookExecutor` is provided for validating webhook-exe
 - `WEBHOOK_TLS_CERT`: Path to TLS certificate file
 - `WEBHOOK_TLS_KEY`: Path to TLS private key file
 
+#### JWT refresh configuration
+
+- `WEBHOOK_JWT_MIN_TTL`: duration string (e.g. `5m`, `30s`) that controls how close to expiry a presented JWT must be before the service issues a refreshed JWT. Default: `5m`.
+- `WEBHOOK_JWT_NEW_TTL`: duration string (e.g. `24h`, `60m`) used as the TTL for a newly issued refreshed JWT. Default: `24h`.
+
+The service logs a warning if one of the above variables is present but cannot be parsed as a Go `time.Duration`.
+
 ### Command Line Options
 
 - `-hooks`: Path to hooks JSON file

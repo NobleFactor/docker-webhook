@@ -43,6 +43,7 @@ type Response struct {
 	Stdout        *string `json:"stdout"`
 	Stderr        *string `json:"stderr"`
 	Error         *string `json:"error"`
+	AuthToken     *string `json:"authToken,omitempty"`
 	CorrelationId string  `json:"correlationId"`
 }
 
