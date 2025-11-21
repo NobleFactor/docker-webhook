@@ -8,7 +8,7 @@
 # Test-WebhookExecutorStandalone - Test webhook-executor binary directly
 # shellcheck source=../bin/Declare-BashScript
 
-source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "command:,location:,token-name:,service-principal-password:,service-principal-name:,help" "h" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,command:,location:,token-name:,service-principal-password:,service-principal-name:" "h" "$@"
 
 ###########
 # Functions
@@ -18,20 +18,21 @@ function test_command {
     local address="$1"
     local cmd="$2"
 
-    echo "==> Testing command: $cmd"
+    note "==> Testing command: $cmd"
 
-    local response=$(cd src && go run ./cmd/webhook-executor --destination "$address" --command "$cmd" --authorization "$jwt" 2>&1)
+    local response=$(cd src && go run ./cmd/webhook-executor --destination "$address" --command "$cmd" --authorization "$jwt")
+
     if [[ -z "$response" ]]; then
-        error 0 "FAIL: No response from $cmd"
+        error 0 "FAIL: No response for $cmd"
         return 1
     fi
 
-    if ! echo "$response" | jq -e '.exit_code and .reason and (.error == null or type == "string") and has("stdout") and has("stderr")' >/dev/null 2>&1; then
-        error 0 "FAIL: Invalid JSON response for $cmd: $response"
+    if ! echo "$response" | jq -e '.status and .reason and (.error == null or type == "string") and has("stdout") and has("stderr") and has("correlationId")' >/dev/null 2>&1; then
+        error 0 "FAIL: Invalid response for $cmd: $response"
         return 1
     fi
 
-    success "PASS: $cmd returned valid JSON: $response"
+    success "PASS: $cmd returned: $response"
     return 0
 }
 
@@ -113,9 +114,9 @@ if [[ -z "${AZURE_CLIENT_SECRET:-}" || -z "$AZURE_CLIENT_ID" || -z "$AZURE_TENAN
     error 1 "Unable to retrieve AZURE_CLIENT_SECRET, AZURE_CLIENT_ID, or AZURE_TENANT_ID from az ad sp list. Ensure service-principal name '${service_principal_name}' is the correct display name and you have permissions to query service principals."
 fi
 
-# Set WEBHOOK_CONFIG
+# Set webhook config directory location
 
-declare -r webhook_config="webhook.config/$location"
+cd "${script_root}/.." && declare -r webhook_config=$(/bin/realpath "webhook.config/$location")
 
 # Source hooks environment
 
@@ -174,11 +175,11 @@ note "Starting standalone webhook-executor tests for destination: $destination"
 passed_tests=0
 failed_tests=0
 
-for cmd in "${commands[@]}"; do
-    if test_command "${destination_address}" "$cmd"; then
-        ((passed_tests++))
+for command in "${commands[@]}"; do
+    if test_command "${destination_address}" "$command"; then
+        ((passed_tests++)) || :
     else
-        ((failed_tests++))
+        ((failed_tests++)) || :
     fi
 done
 

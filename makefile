@@ -8,6 +8,7 @@
 SHELL := bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -c
 .ONESHELL:
+.SILENT:
 
 ## PARAMETERS
 
@@ -222,10 +223,10 @@ HELP_COLWIDTH ?= 28
 help: help-short ## Show brief help (alias: help-short)
 
 help-full: ## Show detailed usage (man page)
-	@man "$(project_root)/docs/docker-webhook.1"
+	man "$(project_root)/docs/docker-webhook.1"
 
 help-short: ## Show brief help for annotated targets
-	@awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
+	awk 'BEGIN {FS = ":.*##"; pad = $(HELP_COLWIDTH); print "Usage: make <target> [VAR=VALUE]"; print ""; print "Targets:"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-*s %s\n", pad, $$1, $$2} /^##@/ {printf "\n%s\n", substr($$0,5)}' $(MAKEFILE_LIST) | less -R
 
 ##@ Utilities
 
@@ -236,30 +237,30 @@ clean: ## Stop, remove network, prune unused images/containers/volumes (DANGEROU
 	sudo docker volume prune --force --all
 
 format: ## Format shell scripts in-place using shfmt (4-space indent)
-	@echo "==> Formatting shell scripts with shfmt"
-	@shell_scripts=$$(find bin test webhook.config -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true);
-	@if [[ -n "$$shell_scripts" ]]; then
-		@shfmt -w -i 4 $$shell_scripts || { echo "shfmt failed"; exit 1; }
+	echo "==> Formatting shell scripts with shfmt"
+	shell_scripts=$$(find bin test webhook.config -type f -exec grep -lE '^#!(/usr/bin/env[[:space:]]+)?(sh|bash)' {} + 2>/dev/null || true);
+	if [[ -n "$$shell_scripts" ]]; then
+		shfmt -w -i 4 $$shell_scripts || { echo "shfmt failed"; exit 1; }
 	else
-		@echo "No shell scripts found to format"
+		echo "No shell scripts found to format"
 	fi
 
 # Setup: install dependencies and register pre-commit hooks
 setup: ## Install dependencies and configure pre-commit for this repo
-	@echo "==> Running bin/Install-Dependencies..."
-	@./bin/Install-Dependencies
-	@if ! command -v pre-commit >/dev/null; then
-		@echo "==> Installing pre-commit..."
-		@python3 -m pip install --user pre-commit
-		@mkdir -p ~/.local/bin
-		@ln -sf "$(python3 -c 'import site; print(site.USER_BASE)')/bin/pre-commit" ~/.local/bin/pre-commit
+	echo "==> Running bin/Install-Dependencies..."
+	./bin/Install-Dependencies
+	if ! command -v pre-commit >/dev/null; then
+		echo "==> Installing pre-commit..."
+		python3 -m pip install --user pre-commit
+		mkdir -p ~/.local/bin
+		ln -sf "$(python3 -c 'import site; print(site.USER_BASE)')/bin/pre-commit" ~/.local/bin/pre-commit
 	fi
-	@echo "==> Installing pre-commit hooks.."
-	@if ~/.local/bin/pre-commit install >/dev/null; then
-		@echo "Pre-commit hooks installed to .git/hooks/pre-commit."
+	echo "==> Installing pre-commit hooks.."
+	if ~/.local/bin/pre-commit install >/dev/null; then
+		echo "Pre-commit hooks installed to .git/hooks/pre-commit."
 	else
-		@echo "Pre-commit install failed."
-		@exit 1
+		echo "Pre-commit install failed."
+		exit 1
 	fi
 
 test: ## Runs repository test scripts
@@ -269,56 +270,55 @@ test: ## Runs repository test scripts
 	$(MAKE) Test-ShellScript
 
 Test-ShellFormatting: ## Check shell formatting (non-destructive)
-	@echo "==> Running Test-ShellFormatting"
-	@./test/Test-ShellFormatting || { echo "Test-ShellFormatting failed"; exit 1; }
+	echo "==> Running Test-ShellFormatting"
+	./test/Test-ShellFormatting || { echo "Test-ShellFormatting failed"; exit 1; }
 
 Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
-	@echo "==> Running Test-ShellScript"
-	@./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
+	echo "==> Running Test-ShellScript"
+	./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
 Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script against the webhook with JWT from Key Vault and configurable commands (separated by ;)
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
 	$(if $(WEBHOOK_SP),, $(error WEBHOOK_SP not set))
 
-	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	hooks_env="webhook.config/$(LOCATION)/hooks.env"
 
-	@if [[ ! -f "$$hooks_env" ]]; then
-		@echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config."
-		@exit 1
+	if [[ ! -f "$$hooks_env" ]]; then
+		echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config."
+		exit 1
 	fi
 
-	@source "$$hooks_env"
+	source "$$hooks_env"
 
-	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
-		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
-		@exit 1
+	if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
+		echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
+		exit 1
 	fi
-	@if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
-		@echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
-		@exit 1
-	fi
-
-	@echo "==> Running Test-WebhookExecutorIntegration with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
-
-	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
-
-	@if [[ -z "$$destination" ]]; then 
-		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
+	if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
+		echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
+		exit 1
 	fi
 
-	@if [[ "$$destination" != ssh://* ]]; then 
-		@destination="ssh://$$destination"
+	echo "==> Running Test-WebhookExecutorIntegration with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
+
+	destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
+
+	if [[ -z "$$destination" ]]; then 
+		destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
 	fi
 
-	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
-	@cmd_args=""
-	@for cmd in "$${cmds[@]}"; do
-		@cmd_args="$$cmd_args --command $$cmd"
+	if [[ "$$destination" != ssh://* ]]; then 
+		destination="ssh://$$destination"
+	fi
+
+	IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
+	cmd_args=""
+	for cmd in "$${cmds[@]}"; do
+		cmd_args="$$cmd_args --command $$cmd"
 	done
 
-	@./test/Test-WebhookExecutorIntegration \
+	./test/Test-WebhookExecutorIntegration \
 		--webhook-url "$(WEBHOOK_URL)$(WEBHOOK_EXECUTOR)" \
-		--destination "$$destination" \
 		--keyvault-url "$$WEBHOOK_KEYVAULT_URL" \
 		--secret-name "$$WEBHOOK_SECRET_NAME" \
 		--service-principal-name "$(WEBHOOK_SP)" \
@@ -327,44 +327,45 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 
 Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;)
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
+	$(if $(LOCATION),, $(error LOCATION not set))
 
-	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	hooks_env="webhook.config/$(LOCATION)/hooks.env"
 
-	@if [[ ! -f "$$hooks_env" ]]; then
-		@echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config manually."
-		@exit 1
+	if [[ ! -f "$$hooks_env" ]]; then
+		echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config manually."
+		exit 1
 	fi
 
-	@source "$$hooks_env"
+	source "$$hooks_env"
 
-	@if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
-		@echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
-		@exit 1
+	if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
+		echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
+		exit 1
 	fi
 
-	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
-		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
-		@exit 1
+	if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
+		echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
+		exit 1
 	fi
 
-	@echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
+	echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
-	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
+	destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
 
-	@if [[ -z "$$destination" ]]; then 
-		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
+	if [[ -z "$$destination" ]]; then 
+		destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
 	fi
-	@if [[ "$$destination" != ssh://* ]]; then 
-		@destination="ssh://$$destination"
+	if [[ "$$destination" != ssh://* ]]; then 
+		destination="ssh://$$destination"
 	fi
 
-	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
-	@cmd_args=""
-	@for cmd in "$${cmds[@]}"; do
-		@cmd_args="$$cmd_args --command $$cmd"
+	IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
+	cmd_args=""
+	for cmd in "$${cmds[@]}"; do
+		cmd_args="$$cmd_args --command $$cmd"
 	done
 
-	@./test/Test-WebhookExecutorStandalone \
+	./test/Test-WebhookExecutorStandalone \
 		--location "$(LOCATION)" \
 		--token-name "$(WEBHOOK_TOKEN_NAME)" \
 		--service-principal-name "$(WEBHOOK_SP)" \
@@ -372,14 +373,14 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 		$$cmd_args
 
 Test-WebhookDeploymentPreparation:
-	@echo "==> Running Test-DockerLocationGeneration"
-	@./test/Test-WebhookDeploymentPreparation --location zz-xy || { echo "Test-WebhookDeploymentPreparation failed"; exit 1; }
+	echo "==> Running Test-DockerLocationGeneration"
+	./test/Test-WebhookDeploymentPreparation --location zz-xy || { echo "Test-WebhookDeploymentPreparation failed"; exit 1; }
 
 Test-WebhookReadiness:
-	@echo "==> Running Test-WebhookReadiness"
-	@echo "==> Setting up test environment: make clean New-Webhook Start-Webhook"
-	@$(MAKE) clean AZURE_CLIENT_SECRET=dummy New-Webhook Start-Webhook
-	@./test/Test-WebhookReadiness --container "$(CONTAINER_HOSTNAME)" --wait 2 || { echo "Test-WebhookReadiness failed"; exit 1; }
+	echo "==> Running Test-WebhookReadiness"
+	echo "==> Setting up test environment: make clean New-Webhook Start-Webhook"
+	$(MAKE) clean AZURE_CLIENT_SECRET=dummy New-Webhook Start-Webhook
+	./test/Test-WebhookReadiness --container "$(CONTAINER_HOSTNAME)" --wait 2 || { echo "Test-WebhookReadiness failed"; exit 1; }
 
 ##@ Azure Authentication
 New-WebhookAzureAuth: ## Initialize Azure service principal authentication for webhook-executor using service principal display name
@@ -387,69 +388,69 @@ New-WebhookAzureAuth: ## Initialize Azure service principal authentication for w
 	$(if $(WEBHOOK_SP),, $(error WEBHOOK_SP not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
-	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
-	@mkdir --parents "webhook.config/$(LOCATION)"
+	hooks_env="webhook.config/$(LOCATION)/hooks.env"
+	mkdir --parents "webhook.config/$(LOCATION)"
 
 	# Fetch AZURE_CLIENT_ID and AZURE_TENANT_ID from service principal display name
 
-	@AZURE_CLIENT_ID=$$(az ad sp list --display-name "$(WEBHOOK_SP)" --query "[0].appId" -o tsv)
+	AZURE_CLIENT_ID=$$(az ad sp list --display-name "$(WEBHOOK_SP)" --query "[0].appId" -o tsv)
 
-	@if [[ -z "$$AZURE_CLIENT_ID" ]]; then
+	if [[ -z "$$AZURE_CLIENT_ID" ]]; then
 		echo "Error: Service principal '$(WEBHOOK_SP)' not found."
 		exit 1
 	fi
 
-	@AZURE_TENANT_ID=$$(az account show --query tenantId -o tsv)
+	AZURE_TENANT_ID=$$(az account show --query tenantId -o tsv)
 
-	@if [[ -z "$$AZURE_TENANT_ID" ]]; then
+	if [[ -z "$$AZURE_TENANT_ID" ]]; then
 		echo "Error: Unable to retrieve tenant ID."
 		exit 1
 	fi
 
-	@if grep --quiet "^.*WEBHOOK_SP=" "$$hooks_env" 2>/dev/null; then
-		@sed --in-place "s|^.*WEBHOOK_SP=.*|export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging|" "$$hooks_env"
+	if grep --quiet "^.*WEBHOOK_SP=" "$$hooks_env" 2>/dev/null; then
+		sed --in-place "s|^.*WEBHOOK_SP=.*|export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging|" "$$hooks_env"
 	else
-		@echo "export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging" >> "$$hooks_env"
+		echo "export WEBHOOK_SP=$(WEBHOOK_SP) # for reference and debugging" >> "$$hooks_env"
 	fi
-	@if grep --quiet "^.*AZURE_CLIENT_ID=" "$$hooks_env" 2>/dev/null; then
-		@sed --in-place "s|^.*AZURE_CLIENT_ID=.*|export AZURE_CLIENT_ID=$$AZURE_CLIENT_ID|" "$$hooks_env"
+	if grep --quiet "^.*AZURE_CLIENT_ID=" "$$hooks_env" 2>/dev/null; then
+		sed --in-place "s|^.*AZURE_CLIENT_ID=.*|export AZURE_CLIENT_ID=$$AZURE_CLIENT_ID|" "$$hooks_env"
 	else
-		@echo "export AZURE_CLIENT_ID=$$AZURE_CLIENT_ID" >> "$$hooks_env"
+		echo "export AZURE_CLIENT_ID=$$AZURE_CLIENT_ID" >> "$$hooks_env"
 	fi
-	@if grep --quiet "^.*AZURE_TENANT_ID=" "$$hooks_env" 2>/dev/null; then
-		@sed --in-place "s|^.*AZURE_TENANT_ID=.*|export AZURE_TENANT_ID=$$AZURE_TENANT_ID|" "$$hooks_env"
+	if grep --quiet "^.*AZURE_TENANT_ID=" "$$hooks_env" 2>/dev/null; then
+		sed --in-place "s|^.*AZURE_TENANT_ID=.*|export AZURE_TENANT_ID=$$AZURE_TENANT_ID|" "$$hooks_env"
 	else
-		@echo "export AZURE_TENANT_ID=$$AZURE_TENANT_ID" >> "$$hooks_env"
+		echo "export AZURE_TENANT_ID=$$AZURE_TENANT_ID" >> "$$hooks_env"
 	fi
 
-	@echo "Azure authentication variables updated in $$hooks_env"
-	@echo "Note: AZURE_CLIENT_SECRET must be set at container runtime for security"
+	echo "Azure authentication variables updated in $$hooks_env"
+	echo "Note: AZURE_CLIENT_SECRET must be set at container runtime for security"
 
 	# Grant Key Vault Secrets User role to the service principal
-	@az role assignment create --assignee "$$AZURE_CLIENT_ID" --role "Key Vault Secrets User" --scope "/subscriptions/$$(az account show --query id -o tsv)/resourceGroups/smart-home/providers/Microsoft.KeyVault/vaults/home-security-keys" || echo "Role assignment may already exist."
-	@echo "Validating Azure credentials..."
+	az role assignment create --assignee "$$AZURE_CLIENT_ID" --role "Key Vault Secrets User" --scope "/subscriptions/$$(az account show --query id -o tsv)/resourceGroups/smart-home/providers/Microsoft.KeyVault/vaults/home-security-keys" || echo "Role assignment may already exist."
+	echo "Validating Azure credentials..."
 
-	@if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
-		@echo "Azure credentials validated successfully"
+	if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
+		echo "Azure credentials validated successfully"
 	else
-		@echo "Error: Azure credentials validation failed"
-		@exit 1
+		echo "Error: Azure credentials validation failed"
+		exit 1
 	fi
 
 ##@ Build and Create
 
 Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than webhook-$(LOCATION).env
-	@env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
-	@if [[ ! -f "$$env_file" ]]; then
+	env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
+	if [[ ! -f "$$env_file" ]]; then
 		echo "Missing environment file: $$env_file"
 		exit 1
 	fi
 	regen=0
-	@if [[ ! -f "$(project_file)" || "$(project_file)" -ot "$$env_file" ]]; then
+	if [[ ! -f "$(project_file)" || "$(project_file)" -ot "$$env_file" ]]; then
 		regen=1
 	fi
-	@certificate_request_file="$(project_root)/$(ROLE).config/$(LOCATION)/ssl-certificates/certificate-request.conf"
-	@if [[ ! -f "$${certificate_request_file}" || "$${certificate_request_file}" -ot "$${env_file}" ]]; then
+	certificate_request_file="$(project_root)/$(ROLE).config/$(LOCATION)/ssl-certificates/certificate-request.conf"
+	if [[ ! -f "$${certificate_request_file}" || "$${certificate_request_file}" -ot "$${env_file}" ]]; then
 		regen=1
 	fi
 	if (( regen )); then
@@ -457,25 +458,25 @@ Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if m
 	fi
 
 New-Webhook: New-WebhookImage New-WebhookContainer ## Build image and create container
-	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
+	echo -e "\n\033[1mWhat's next:\033[0m"
+	echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Generate self-signed SSL certificates for LOCATION
-	@cd "$(ssl_certificates_root)"
-	@openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
-	@openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
-	@chmod 600 * && chmod 700 .
+	cd "$(ssl_certificates_root)"
+	openssl req -x509 -new -config certificate-request.conf -nodes -days 365 -out certificate.pem
+	openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
+	chmod 600 * && chmod 700 .
 
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_command) ## Create container from existing image and prepare volumes
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
-	@if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
+	if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
 		echo "An IP_RANGE is required for macvlan. Take care to ensure it does not overlap with the pool of addresses managed by your DHCP Server."
 		exit 1
 	fi
 
-	@if [[ -n "$(IP_ADDRESS)" ]]; then
+	if [[ -n "$(IP_ADDRESS)" ]]; then
 		if ! grepcidr "$(IP_RANGE)" <(echo "$(IP_ADDRESS)") >/dev/null 2>&1; then
 			echo "Failure: $(IP_ADDRESS) is NOT in $(IP_RANGE)"
 			exit 1
@@ -485,17 +486,17 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	$(docker_compose) stop
 	"$(project_root)/bin/New-DockerNetwork" --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
 	$(docker_compose) create --force-recreate --pull never --remove-orphans
-	@sudo docker inspect "$(CONTAINER_HOSTNAME)"
+	sudo docker inspect "$(CONTAINER_HOSTNAME)"
 
-	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
+	echo -e "\n\033[1mWhat's next:\033[0m"
+	echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
 	./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --location "$(LOCATION)" --permit-principal-name "$(WEBHOOK_SP)"
 
 New-WebhookImage: ## Build the Webhook image only
-	@echo "PLATFORM=$(PLATFORM)"
-	@sudo docker buildx build \
+	echo "PLATFORM=$(PLATFORM)"
+	sudo docker buildx build \
 		--platform $(PLATFORM) \
 		--build-arg webhook_executor_exclude=$(WEBHOOK_EXECUTOR_EXCLUDE) \
 		--build-arg s6_overlay_version=$(S6_OVERLAY_VERSION) \
@@ -504,13 +505,13 @@ New-WebhookImage: ## Build the Webhook image only
 		$(BUILDX_LOAD) $(BUILDX_PUSH) \
 		--progress=plain \
 		--tag "$(IMAGE)" .
-	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
+	echo -e "\n\033[1mWhat's next:\033[0m"
+	echo "    Create Webhook container in $(LOCATION): make New-WebhookContainer [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookKeys: ## Generate SSH keys for LOCATION
-	@mkdir --parent $(ssh_keys_root)
-	@ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
-	@chmod -R 600 $(ssh_keys_root)
+	mkdir --parent $(ssh_keys_root)
+	ssh-keygen -t rsa -b 4096 -f "$(ssh_keys_root)/id_rsa" -N "" <<< $$'y\n'
+	chmod -R 600 $(ssh_keys_root)
 
 ##@ Lifecycle
 Restart-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ## Restart container
@@ -522,7 +523,7 @@ Start-Webhook: $(container_certificates) $(container_hooks) $(container_keys) ##
 	$(MAKE) Get-WebhookStatus
 
 Start-WebhookShell: ## Open interactive shell in the container
-	@sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
+	sudo docker exec --interactive --tty ${CONTAINER_HOSTNAME} /bin/bash
 
 Stop-Webhook: ## Stop container
 	$(docker_compose) stop
@@ -535,28 +536,28 @@ Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 ##@ Runtime resource updates
 
 Sync-WebhookConfig: ## Synchronize webhook config directory to volumes with rsync (preserves permissions, handles additions/removals)
-	@rsync -av --delete "webhook.config/$(LOCATION)/" "$(volume_root)/"
+	rsync -av --delete "webhook.config/$(LOCATION)/" "$(volume_root)/"
 
 Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
-	@mkdir --parent "$(volume_root)/ssh"
-	@cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
+	mkdir --parent "$(volume_root)/ssh"
+	cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
 
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
-	@mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
-	@cp --preserve --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
-	@cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
-	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
+	mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
+	cp --preserve --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
+	cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
+	echo -e "\n\033[1mWhat's next:\033[0m"
+	echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
 
 Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and command script into container volume for LOCATION
-	@mkdir --parent "$(volume_root)"
-	@cp --preserve --verbose "$(webhook_hooks)" "$(volume_root)"
+	mkdir --parent "$(volume_root)"
+	cp --preserve --verbose "$(webhook_hooks)" "$(volume_root)"
 
 Update-WebhookHooksEnv: ## Copy hooks.env to webhook volumes
-	@mkdir --parent "$(volume_root)"
-	@cp --preserve --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
-	@echo -e "\n\033[1mWhat's next:\033[0m"
-	@echo "    Restart Webhook to load new hooks.env: make Restart-Webhook"
+	mkdir --parent "$(volume_root)"
+	cp --preserve --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
+	echo -e "\n\033[1mWhat's next:\033[0m"
+	echo "    Restart Webhook to load new hooks.env: make Restart-Webhook"
 
 ## BUILD RULES
 
@@ -566,7 +567,7 @@ $(ssl_certificates_root)/certificate-request.conf: $(project_root)/webhook-$(LOC
 	$(project_root)/bin/Prepare-WebhookDeployment --env-file $(project_root)/webhook-$(LOCATION).env
 
 $(ssl_certificates): $(ssl_certificates_root)/certificate-request.conf
-	@echo $(ssl_certificates)
+	echo $(ssl_certificates)
 	$(MAKE) New-WebhookCertificates
 
 $(container_certificates): $(ssl_certificates)
@@ -583,7 +584,7 @@ $(container_keys): $(ssh_keys)
 ### webhook hooks
 
 $(webhook_hooks):
-	@echo '[]' > $(webhook_hooks)
+	echo '[]' > $(webhook_hooks)
 
 $(container_hooks):
 	$(MAKE) Update-WebhookHooks
@@ -596,12 +597,12 @@ override compose_template := $(project_root)/services.yaml.template
 override certreq_template := $(project_root)/certificate-request.conf.template
 
 $(env_file):
-	@echo "Missing environment file: $@"
-	@echo "Create it or symlink it into the project root (e.g., from test/baseline)."
-	@echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"
+	echo "Missing environment file: $@"
+	echo "Create it or symlink it into the project root (e.g., from test/baseline)."
+	echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"
 
 $(env_stamp): $(env_file)
-	@touch "$@"
+	touch "$@"
 
 $(project_file): $(compose_template) $(certreq_template) $(env_stamp)
 	$(MAKE) Prepare-WebhookDeployment
