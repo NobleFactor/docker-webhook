@@ -87,6 +87,35 @@ function install_script_to_local {
     success "Installed ${script_name} and Declare-BashScript to ~/.local"
 }
 
+function Set-Environment {
+    local envFile
+    local whitelist
+
+    # Optional first args: --whitelist "VAR1 VAR2 ..."
+    if [[ "$1" == "--whitelist" ]]; then
+        whitelist="$2"
+        shift 2
+    fi
+
+    for envFile in "$@"; do
+        while read -r line; do
+            trimmed_line="$(echo ${line} | xargs)"
+            [[ -z ${trimmed_line:-} ]] || [[ "${trimmed_line}" =~ ^#.* ]] && continue
+            IFS='=' read -r name value <<<$(eval echo "$trimmed_line")
+            # trim whitespace
+            name="${name#"${name%%[![:space:]]*}"}"
+            name="${name%"${name##*[![:space:]]}"}"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+            # If whitelist is provided, ensure name is in whitelist
+            if [[ -z "$whitelist" || " $whitelist " == *" $name "* ]]; then
+                export "$name"="$value"
+                echo "export $name=\"$value\""
+            fi
+        done <"$envFile"
+    done
+}
+
 function usage {
     local _synopsis="${1:-}"
 

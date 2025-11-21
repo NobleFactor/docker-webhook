@@ -9,7 +9,7 @@ _new_webhook_executor_token_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--env-file --algorithm --keyvault-url --location --secret-name --token-name --permit-spn --help"
+    opts="--env-file --algorithm --keyvault-url --location --secret-name --token-name --permit-principal-name --help"
 
     if [[ ${cur} == -* ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

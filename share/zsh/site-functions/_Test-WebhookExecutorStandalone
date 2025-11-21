@@ -6,7 +6,6 @@
 #compdef Test-WebhookExecutorStandalone
 _arguments \
   '--command[Command to execute]' \
-  '--destination[Destination for test]' \
   '--location[Webhook location]' \
   '--token-name[Key Vault token name]' \
   '--help[Show usage information and exit]'

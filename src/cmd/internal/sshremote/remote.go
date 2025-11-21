@@ -1,12 +1,10 @@
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package sshremote
 
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -49,60 +47,9 @@ type Response struct {
 }
 
 // ExecuteRemoteCommand performs the core logic of remote-mac
-func ExecuteRemoteCommand(destination, command string) Response {
+func ExecuteRemoteCommand(destination string, clientConfig *ssh.ClientConfig, command string) Response {
 
-	// Parse destination as user@host
-
-	parts := strings.Split(destination, "@")
-	if len(parts) != 2 {
-		errorMsg := "Invalid destination format"
-		return Response{Error: &errorMsg, Status: -1, Reason: "SSH Error"}
-	}
-
-	user := parts[0]
-	host := parts[1]
-
-	// Load private key
-
-	configDir := os.Getenv("WEBHOOK_CONFIG")
-	if configDir == "" {
-		configDir = "/usr/local/etc/webhook"
-	}
-	keyPath := filepath.Join(configDir, "ssh", "id_rsa")
-
-	keyBytes, err := os.ReadFile(keyPath)
-	if err != nil {
-		errorMsg := "Failed to read private key: " + err.Error()
-		return Response{Error: &errorMsg, Status: -1, Reason: "SSH Error"}
-	}
-
-	signer, err := ssh.ParsePrivateKey(keyBytes)
-	if err != nil {
-		errorMsg := "Failed to parse private key: " + err.Error()
-		return Response{Error: &errorMsg, Status: -1, Reason: "SSH Error"}
-	}
-
-	// Configure
-
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	// Connect
-
-	var address string
-	if strings.Contains(host, ":") {
-		address = host
-	} else {
-		address = host + ":22"
-	}
-
-	conn, err := ssh.Dial("tcp", address, config)
+	conn, err := ssh.Dial("tcp", destination, clientConfig)
 	if err != nil {
 		errorMsg := "Failed to connect: " + err.Error()
 		return Response{Error: &errorMsg, Status: -1, Reason: "SSH Error"}

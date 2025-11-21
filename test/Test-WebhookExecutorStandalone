@@ -8,24 +8,19 @@
 # Test-WebhookExecutorStandalone - Test webhook-executor binary directly
 # shellcheck source=../bin/Declare-BashScript
 
-source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "command:,destination:,location:,token-name:,service-principal-password:,service-principal-name:,help" "h" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "command:,location:,token-name:,service-principal-password:,service-principal-name:,help" "h" "$@"
 
 ###########
 # Functions
 ###########
 
 function test_command {
-    local cmd="$1"
+    local address="$1"
+    local cmd="$2"
 
     echo "==> Testing command: $cmd"
 
-    local response=$(cd src &&
-        WEBHOOK_KEYVAULT_URL="${WEBHOOK_KEYVAULT_URL}" \
-            WEBHOOK_SECRET_NAME="${WEBHOOK_SECRET_NAME}" \
-            WEBHOOK_LOCATION="${WEBHOOK_LOCATION}" \
-            WEBHOOK_CONFIG="${webhook_config}" \
-            go run ./cmd/webhook-executor --destination "$destination" --command "$cmd" --authorization "$jwt" 2>/dev/null)
-
+    local response=$(cd src && go run ./cmd/webhook-executor --destination "$address" --command "$cmd" --authorization "$jwt" 2>&1)
     if [[ -z "$response" ]]; then
         error 0 "FAIL: No response from $cmd"
         return 1
@@ -38,6 +33,25 @@ function test_command {
 
     success "PASS: $cmd returned valid JSON: $response"
     return 0
+}
+
+function wait_for_container_and_user {
+
+    local container="$1"
+    local user="$2"
+    local timeout="${3:-60}"
+    local end="$(($(date +%s) + timeout))"
+
+    while (($(date +%s) < end)); do
+        local cid
+        cid=$(docker ps --filter "name=$container" --filter "status=running" -q 2>/dev/null) || cid=""
+        if [[ -n "$cid" ]] && docker exec "$container" id "$user" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    error 1 "timed out waiting for ${container}/${user}"
 }
 
 ###########
@@ -55,10 +69,6 @@ while [[ $# -gt 0 ]]; do
         ;;
     --command)
         commands+=("$2")
-        shift 2
-        ;;
-    --destination)
-        declare -r destination="$2"
         shift 2
         ;;
     --location)
@@ -88,7 +98,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 ((${#commands[@]} > 0)) || error 1 "At least one command to test is required."
-[[ -n ${destination:-} ]] || error 1 "A non-blank value for destination is required."
 [[ -n ${location:-} ]] || error 1 "A non-blank value for location is required."
 [[ -n ${service_principal_name:-} ]] || error 1 "A non-blank value for service-principal-name is required."
 [[ -n ${service_principal_password:-} ]] || error 1 "A non-blank value for service-principal-password is required."
@@ -131,14 +140,33 @@ fi
 # Main
 ###########
 
-if docker ps -a --filter name=webhook-executor-destination --format "{{.Names}}" | grep -q webhook-executor-destination; then
-    if ! docker ps --filter name=webhook-executor-destination --format "{{.Names}}" | grep -q webhook-executor-destination; then
-        sudo docker start webhook-executor-destination
-    fi
-else
-    sudo docker build -t webhook-executor-image -f Dockerfile.webhook-executor-destination .
-    sudo docker run -d --name webhook-executor-destination webhook-executor-image
+declare -r authorized_key="$(cat "${webhook_config}/ssh/id_rsa.pub")"
+declare -r destination=webhook-executor-destination
+
+note "Starting test container: ${destination}..."
+
+if [[ -n $(sudo docker ps -a --filter name=${destination} --format "{{.Names}}") ]]; then
+    sudo docker container rm --force "${destination}"
 fi
+
+if [[ -z $(sudo docker images -q noblefactor/${destination}) ]]; then
+    sudo docker build -t "noblefactor/${destination}" -f "Dockerfile.${destination}" .
+fi
+
+sudo docker run -d --name "${destination}" "noblefactor/${destination}" "${authorized_key}"
+wait_for_container_and_user ${destination} ${destination} 60
+
+declare -r destination_address="ssh://${destination}@$(
+    docker inspect --format='{{.NetworkSettings.IPAddress}}' ${destination}
+):$(
+    docker inspect --format='{{.Config.ExposedPorts}}' "${destination}" | awk -F'[][/:]' '{print $2}'
+)"
+
+# Ensure that webhook-executor can locate its location-based configuration
+
+export WEBHOOK_CONFIG="${webhook_config}"
+
+# Run test commands
 
 declare -r start_time=$(date +%s)
 
@@ -147,7 +175,7 @@ passed_tests=0
 failed_tests=0
 
 for cmd in "${commands[@]}"; do
-    if test_command "$cmd"; then
+    if test_command "${destination_address}" "$cmd"; then
         ((passed_tests++))
     else
         ((failed_tests++))

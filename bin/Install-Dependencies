@@ -74,11 +74,11 @@ MacPorts install instructions: https://www.macports.org/install.php
     # Install Utilities
 
     if command -v port >/dev/null; then
-        for utility in codespell curl gawk gmake grepcidr ipcalc jq shellcheck shfmt; do
+        for utility in codespell curl gawk gmake grepcidr ipcalc jq jwt-cli shellcheck shfmt; do
             command -v "${utility}" >/dev/null || sudo port install "${utility}"
         done
     else
-        for utility in codespell curl gawk grepcidr ipcalc jq make shellcheck shfmt; do
+        for utility in codespell curl gawk grepcidr ipcalc jq jwt-cli make shellcheck shfmt; do
             command -v "${utility}" >/dev/null || brew install "${utility}"
         done
     fi

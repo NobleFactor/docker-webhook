@@ -44,7 +44,7 @@ override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 WEBHOOK_EXECUTOR_DESTINATION ?=
 WEBHOOK_EXECUTOR_EXCLUDE     ?= false
 WEBHOOK_JWT_ALGORITHM        ?= HS512
-WEBHOOK_JWT_PAYLOAD          ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+1 hour" +%s)}
+WEBHOOK_JWT_PAYLOAD          ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+24 hours" +%s)}
 WEBHOOK_KEYVAULT_URL         ?=
 WEBHOOK_SECRET_NAME          ?= webhook-executor-$(LOCATION)-secret
 WEBHOOK_TOKEN_NAME           ?= webhook-executor-$(LOCATION)-token
@@ -306,6 +306,10 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
 	fi
 
+	@if [[ "$$destination" != ssh://* ]]; then 
+		@destination="ssh://$$destination"
+	fi
+
 	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
 	@cmd_args=""
 	@for cmd in "$${cmds[@]}"; do
@@ -324,10 +328,6 @@ Test-WebhookExecutorIntegration: ## Run Test-WebhookExecutorIntegration script a
 Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;)
 	$(if $(AZURE_CLIENT_SECRET),, $(error AZURE_CLIENT_SECRET not set))
 
-	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
-		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
-		@exit 1
-	fi
 	@hooks_env="webhook.config/$(LOCATION)/hooks.env"
 
 	@if [[ ! -f "$$hooks_env" ]]; then
@@ -342,12 +342,20 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 		@exit 1
 	fi
 
+	@if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
+		@echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
+		@exit 1
+	fi
+
 	@echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
 
 	@destination="$(WEBHOOK_EXECUTOR_DESTINATION)"
 
 	@if [[ -z "$$destination" ]]; then 
 		@destination="$(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME)"
+	fi
+	@if [[ "$$destination" != ssh://* ]]; then 
+		@destination="ssh://$$destination"
 	fi
 
 	@IFS=';' read -ra cmds <<< "$(WEBHOOK_EXECUTOR_COMMAND)"
@@ -358,7 +366,6 @@ Test-WebhookExecutorStandalone: ## Run Test-WebhookExecutorStandalone script dir
 
 	@./test/Test-WebhookExecutorStandalone \
 		--location "$(LOCATION)" \
-		--destination "$$destination" \
 		--token-name "$(WEBHOOK_TOKEN_NAME)" \
 		--service-principal-name "$(WEBHOOK_SP)" \
 		--service-principal-password "$(AZURE_CLIENT_SECRET)" \
@@ -417,6 +424,9 @@ New-WebhookAzureAuth: ## Initialize Azure service principal authentication for w
 
 	@echo "Azure authentication variables updated in $$hooks_env"
 	@echo "Note: AZURE_CLIENT_SECRET must be set at container runtime for security"
+
+	# Grant Key Vault Secrets User role to the service principal
+	@az role assignment create --assignee "$$AZURE_CLIENT_ID" --role "Key Vault Secrets User" --scope "/subscriptions/$$(az account show --query id -o tsv)/resourceGroups/smart-home/providers/Microsoft.KeyVault/vaults/home-security-keys" || echo "Role assignment may already exist."
 	@echo "Validating Azure credentials..."
 
 	@if az login --service-principal --username "$$AZURE_CLIENT_ID" --password "$$AZURE_CLIENT_SECRET" --tenant "$$AZURE_TENANT_ID" --allow-no-subscriptions >/dev/null; then
@@ -481,7 +491,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	@echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
-	@./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --payload "$(WEBHOOK_JWT_PAYLOAD)" --location "$(LOCATION)" --permit-spn "$(WEBHOOK_SP)"
+	./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --location "$(LOCATION)" --permit-principal-name "$(WEBHOOK_SP)"
 
 New-WebhookImage: ## Build the Webhook image only
 	@echo "PLATFORM=$(PLATFORM)"
@@ -524,24 +534,27 @@ Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 
 ##@ Runtime resource updates
 
+Sync-WebhookConfig: ## Synchronize webhook config directory to volumes with rsync (preserves permissions, handles additions/removals)
+	@rsync -av --delete "webhook.config/$(LOCATION)/" "$(volume_root)/"
+
 Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION
 	@mkdir --parent "$(volume_root)/ssh"
-	@cp --verbose $(ssh_keys) "$(volume_root)/ssh"
+	@cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
 
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
 	@mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
-	@cp --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
-	@cp --verbose $(ssh_keys) "$(volume_root)/ssh"
+	@cp --preserve --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
+	@cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
 
 Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and command script into container volume for LOCATION
 	@mkdir --parent "$(volume_root)"
-	@cp --verbose "$(webhook_hooks)" "$(volume_root)"
+	@cp --preserve --verbose "$(webhook_hooks)" "$(volume_root)"
 
 Update-WebhookHooksEnv: ## Copy hooks.env to webhook volumes
 	@mkdir --parent "$(volume_root)"
-	@cp --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
+	@cp --preserve --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
 	@echo -e "\n\033[1mWhat's next:\033[0m"
 	@echo "    Restart Webhook to load new hooks.env: make Restart-Webhook"
 

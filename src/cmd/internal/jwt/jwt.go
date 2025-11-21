@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package jwt
 
 import (
@@ -10,11 +12,11 @@ import (
 )
 
 // ValidateJWT checks the token using the provided secret and expected location
-func ValidateJWT(authHeader string, secretHex string, expectedLocation string) bool {
+func ValidateJWT(authHeader string, secretHex string, expectedLocation string) error {
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 	tokenStr = strings.TrimSpace(tokenStr)
 	if tokenStr == "" {
-		return false
+		return fmt.Errorf("missing or empty token")
 	}
 
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
@@ -28,28 +30,34 @@ func ValidateJWT(authHeader string, secretHex string, expectedLocation string) b
 		return secretBytes, nil
 	})
 
-	if err != nil || !token.Valid {
-		return false
+	if err != nil {
+		return fmt.Errorf("token parsing failed: %w", err)
 	}
 
-	// Optional: check claims (exp, iss)
+	if !token.Valid {
+		return fmt.Errorf("token is invalid")
+	}
+
+	// Check claims
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		if exp, ok := claims["exp"].(float64); ok {
 			if time.Now().After(time.Unix(int64(exp), 0)) {
-				return false
+				return fmt.Errorf("token expired at %v", time.Unix(int64(exp), 0))
 			}
 		}
 		if iss, ok := claims["iss"].(string); ok {
 			if iss != "webhook-executor" {
-				return false
+				return fmt.Errorf("invalid issuer: expected 'webhook-executor', got '%s'", iss)
 			}
 		}
 		if expectedLocation != "" {
 			if sub, ok := claims["sub"].(string); !ok || sub != expectedLocation {
-				return false
+				return fmt.Errorf("invalid subject: expected '%s', got '%s'", expectedLocation, sub)
 			}
 		}
+	} else {
+		return fmt.Errorf("missing or invalid claims")
 	}
 
-	return true
+	return nil
 }

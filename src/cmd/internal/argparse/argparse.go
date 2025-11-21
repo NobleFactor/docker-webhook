@@ -1,4 +1,6 @@
 // Package argparse provides command line argument parsing for webhook-executor
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package argparse
 
 import (

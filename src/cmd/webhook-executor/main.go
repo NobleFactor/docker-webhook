@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package main
 
 import (
@@ -14,10 +16,11 @@ import (
 )
 
 var (
-	keyVaultURL = os.Getenv("WEBHOOK_KEYVAULT_URL") // Azure key vault URL
-	secretName  = os.Getenv("WEBHOOK_SECRET_NAME")  // Name of the secret storing JWT signing key
-	location    = os.Getenv("WEBHOOK_LOCATION")     // Expected location for JWT subject
-	jwtSecret   []byte                              // Cached secret retrieved from Azure key vault
+	keyVaultURL     = os.Getenv("WEBHOOK_KEYVAULT_URL") // Azure key vault URL
+	location        = os.Getenv("WEBHOOK_LOCATION")     // Location of service deployment
+	secretName      = os.Getenv("WEBHOOK_SECRET_NAME")  // Name of the secret storing JWT signing key
+	configDirectory = os.Getenv("WEBHOOK_CONFIG")       // Service configuration directory (default: /usr/local/etc/webhook)
+	jwtSecret       []byte                              // Cached secret retrieved from Azure key vault
 )
 
 func main() {
@@ -38,9 +41,16 @@ func main() {
 
 	log.SetPrefix(fmt.Sprintf("[%s] ", correlationId))
 
+	log.Printf("WEBHOOK_KEYVAULT_URL: %s", keyVaultURL)
+	log.Printf("WEBHOOK_SECRET_NAME: %s", secretName)
+	log.Printf("WEBHOOK_CONFIG: %s", os.Getenv("WEBHOOK_CONFIG"))
+	log.Printf("AZURE_CLIENT_SECRET: %s", os.Getenv("AZURE_CLIENT_SECRET"))
+	log.Printf("AZURE_CLIENT_ID: %s", os.Getenv("AZURE_CLIENT_ID"))
+	log.Printf("AZURE_TENANT_ID: %s", os.Getenv("AZURE_TENANT_ID"))
+
 	log.Printf("Arguments parsed successfully: destination=%s, command=%s, client-ips=%v", parsed.Destination, parsed.Command, parsed.ClientIps)
 
-	targetCmd := parsed.Destination
+	destination := parsed.Destination
 	command := parsed.Command
 	authHeader := parsed.AuthHeader // Fetch JWT secret from Azure Key Vault (once)
 
@@ -58,12 +68,8 @@ func main() {
 
 	// Validate JWT (required)
 
-	if !jwt.ValidateJWT(authHeader, string(jwtSecret), location) {
-		prefix := authHeader
-		if len(authHeader) > 10 {
-			prefix = authHeader[:10]
-		}
-		log.Printf("[ERROR] JWT validation failed for token starting with: %s...", prefix)
+	if err := jwt.ValidateJWT(authHeader, string(jwtSecret), location); err != nil {
+		log.Printf("[ERROR] JWT validation failed: %v", err)
 		errorStr := "invalid JWT"
 		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
 		return
@@ -71,8 +77,17 @@ func main() {
 
 	log.Printf("JWT validation successful") // Execute the remote command
 
-	log.Printf("Executing remote SSH command: ssh %s %s", targetCmd, command)
-	response := sshremote.ExecuteRemoteCommand(targetCmd, command)
+	log.Printf("Executing remote SSH command: ssh %s %s", destination, command)
+
+	destination, clientConfig, err := sshremote.ParseSshDestination(destination, configDirectory)
+	if err != nil {
+		log.Printf("[ERROR] SSH destination parsing failed: %v", err)
+		errorStr := "invalid SSH destination"
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
+
+	response := sshremote.ExecuteRemoteCommand(destination, clientConfig, command)
 	response.CorrelationId = correlationId
 	log.Printf("Remote SSH command execution completed")
 	outputJson(response)

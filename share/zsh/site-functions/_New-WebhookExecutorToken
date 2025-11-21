@@ -11,5 +11,5 @@ _arguments \
   '--location[Webhook deployment location]' \
   '--secret-name[Key Vault secret name for shared secret]' \
   '--token-name[Key Vault secret name for JWT]' \
-  '--permit-spn[Grant service principal access to secret]' \
+  '--permit-principal-name[Grant service principal access to secret by display name; script will fail if this cannot be resolved]' \
   '--help[Show usage information and exit]'

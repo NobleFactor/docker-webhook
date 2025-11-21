@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package azure
 
 import (

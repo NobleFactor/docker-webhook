@@ -569,6 +569,14 @@ Location for JWT payload.
 .B WEBHOOK_TOKEN_NAME
 Name of the secret for the JWT token.
 .PP
+The target accepts the following additional variable related to granting Key Vault access:
+.PP
+.TP
+.B WEBHOOK_SP
+Display name of the Azure service principal to grant Key Vault secret get permission via the
+\fB--permit-principal-name\fR argument; the script will exit with an error if the display name
+cannot be resolved to an Azure AD service principal appId in the current tenant.
+.PP
 Default Values
 .TP
 .B WEBHOOK_KEYVAULT_URL

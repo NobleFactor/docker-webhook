@@ -14,53 +14,6 @@ source "$(dirname "$0")/Declare-BashScript" "$0" \
     "$@"
 
 ###########
-# Functions
-###########
-
-set_env_from_file() {
-
-    local allowed_vars=(
-        ROLE
-        LOCATION
-        COUNTRY_CODE
-        STATE_OR_PROVINCE
-        CITY
-        ORGANIZATION_NAME
-        ORGANIZATIONAL_UNIT
-        DOMAIN_NAME
-        EMAIL_ADDRESS
-    )
-    local env_file="$1"
-
-    if [[ ! -f "$env_file" ]]; then
-        error 1 "Environment file not found: $env_file"
-    fi
-
-    while IFS='=' read -r key value; do
-
-        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue # Skip comments and empty lines
-
-        # Remove surrounding quotes from value, but do not eval or run code
-        value="${value%\"}"
-        value="${value#\"}"
-        local recognized=false
-
-        for var in "${allowed_vars[@]}"; do
-            if [[ "$key" == "$var" ]]; then
-                export "$key"="$value"
-                recognized=true
-                break
-            fi
-        done
-
-        if [[ "$recognized" == false ]]; then
-            note "Unrecognized environment variable in $env_file: $key"
-        fi
-
-    done <"$env_file"
-}
-
-###########
 # Arguments
 ###########
 
@@ -80,7 +33,7 @@ while :; do
         if [[ ! -f "$env_file" ]]; then
             error 1 "Environment file not found: $env_file"
         fi
-        set_env_from_file "$env_file"
+        Set-Environment --whitelist "ROLE LOCATION COUNTRY_CODE STATE_OR_PROVINCE CITY ORGANIZATION_NAME ORGANIZATIONAL_UNIT DOMAIN_NAME EMAIL_ADDRESS" "$env_file"
         shift 2
         ;;
     --role)
@@ -177,3 +130,7 @@ note "  $ssl_certificates_dir/certificate-request.conf"
 note "  $compose_file"
 
 note "Saved environment variables to $env_file"
+
+# Set restrictive permissions: 600 for files, 700 for directories
+chmod -R 600 "${ROLE}.config/${LOCATION}"
+chmod -R u+x "${ROLE}.config/${LOCATION}"
