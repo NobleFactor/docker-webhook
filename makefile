@@ -491,7 +491,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	echo -e "\n\033[1mWhat's next:\033[0m"
 	echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
-New-WebhookExecutorToken: ## Generate a JWT token with a random secret and save it to Azure Key Vault
+New-WebhookExecutorToken: ## Generate a JWT token with a random secret, save both to Azure Key Vault, and output the token to stdout
 	./bin/New-WebhookExecutorToken --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --secret-name "$(WEBHOOK_SECRET_NAME)" --token-name "$(WEBHOOK_TOKEN_NAME)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --location "$(LOCATION)" --permit-principal-name "$(WEBHOOK_SP)"
 
 New-WebhookImage: ## Build the Webhook image only

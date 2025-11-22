@@ -2,7 +2,7 @@
 .\" SPDX-License-Identifier: MIT
 .TH New-WebhookExecutorToken 1 "November 2025" "New-WebhookExecutorToken" "bin"
 .SH NAME
-New-WebhookExecutorToken \- generate a JWT token with a random secret and save both to Azure Key Vault
+New-WebhookExecutorToken \- generate a JWT token with a random secret, save both to Azure Key Vault, and output the token to stdout
 .SH SYNOPSIS
 .B New-WebhookExecutorToken
 [\fB\-\-env-file\fR \fIENV_FILE\fR]
@@ -11,13 +11,14 @@ New-WebhookExecutorToken \- generate a JWT token with a random secret and save b
 [\fB\-\-location\fR \fILOCATION\fR]
 [\fB\-\-secret-name\fR \fISECRET_NAME\fR]
 [\fB\-\-token-name\fR \fITOKEN_NAME\fR]
-[\fB\-\-permit-principal-name\fR \fIDISPLAY_NAME\fR]
+[\fB\-\-grant-access-to\fR \fIDISPLAY_NAME\fR]
+[\fB\-\-silent\fR]
 [\fB\-\-help\fR]
 .SH DESCRIPTION
 .B New-WebhookExecutorToken
 generates a JSON Web Token (JWT) with a random 128-byte shared secret,
-saves both the secret and the JWT to Azure Key Vault, and updates the
-\fBhooks.env\fR file for the specified \fBlocation\fR.
+saves both the secret and the JWT to Azure Key Vault, updates the
+\fBhooks.env\fR file for the specified \fBlocation\fR, and outputs the JWT to stdout.
 .PP
 The script requires
 .BR az (1)
@@ -49,22 +50,25 @@ The name of the Key Vault secret to store the random shared secret.
 .BR \-\-token-name " \fITOKEN_NAME\fR (default: webhook-executor-LOCATION-token)"
 The name of the Key Vault secret to store the generated JWT.
 .TP
-.BR \-\-permit-principal-name " \fIDISPLAY_NAME\fR (required)"
+.BR \-\-grant-access-to " \fIDISPLAY_NAME\fR (required)"
 Grant the specified Azure service principal (by display name) get permission on the
 secret in Key Vault; the script will exit with an error if the display name cannot be
 resolved to an appId in the current Azure tenant.
+.TP
+.BR \-\-silent
+Suppress informational output; only the JWT token is written to stdout.
 .TP
 .BR \-h ", " \-\-help
 Display usage information and exit.
 .SH EXAMPLES
 Generate JWT and save to Key Vault for location 'us-wa':
 .nf
-New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --permit-principal-name webhook-executor-sp
+New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --grant-access-to webhook-executor-sp
 .fi
 .TP
 Use custom names and grant access to a service principal:
 .nf
-New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --secret-name my-secret --token-name my-token --permit-principal-name webhook-executor-sp
+New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --secret-name my-secret --token-name my-token --grant-access-to webhook-executor-sp
 .fi
 .TP
 Load configuration from environment file:

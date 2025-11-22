@@ -131,7 +131,7 @@ source "$hooks_env"
 # Fetch the JSON Web Token from Azure Key Vault
 
 declare -r vault_name=$(echo "$WEBHOOK_KEYVAULT_URL" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
-declare -r jwt=$(az keyvault secret show --vault-name "$vault_name" --name "$token_name" --query value -o tsv)
+declare -r jwt="$(bin/New-WebhookExecutorToken --silent)"
 
 if [[ -z "$jwt" ]]; then
     error 1 "Failed to fetch JSON Web Token from Azure Key Vault"

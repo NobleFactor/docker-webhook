@@ -25,7 +25,7 @@ For secure deployments with JWT-based HMAC authentication using Azure Key Vault:
 
 1. Create an Azure service principal with Reader role: `az ad sp create-for-rbac --name "webhook-executor-sp" --role reader --scopes /subscriptions/<subscription-id>`
 2. Set up authentication credentials for Key Vault access: `make New-WebhookAzureAuth LOCATION=<location>`
-3. Generate and store JWT token in Key Vault: `make New-WebhookExecutorToken`
+3. Generate JWT token, store it and its secret in Key Vault, and output the token: `make New-WebhookExecutorToken`
 4. Start the service with client secret: `make Start-Webhook AZURE_CLIENT_SECRET="<secret>"`
 
 ## Features
