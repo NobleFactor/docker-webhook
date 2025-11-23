@@ -5,20 +5,17 @@
 Test-WebhookExecutorIntegration \- black-box API test for webhook-executor responses via webhook service
 .SH SYNOPSIS
 .B Test-WebhookExecutorIntegration
-\fI--destination\fR \fIDESTINATION\fR \fI--webhook-url\fR \fIURL\fR \fI--keyvault-url\fR \fIURL\fR \fI--secret-name\fR \fINAME\fR \fI--service-principal-name\fR \fINAME\fR \fI--service-principal-password\fR \fIPASSWORD\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+\fI--container\fR \fICONTAINER\fR \fI--destination\fR \fIDESTINATION\fR \fI--location\fR \fILOCATION\fR \fI--command\fR \fICOMMANDS\fR [\fI--help\fR]
 .SH DESCRIPTION
 Test-WebhookExecutorIntegration is a black-box test script that validates the API responses
-from webhook-executor hooks in a running webhook deployment via the webhook service using hooks.json routing. It fetches Azure service principal credentials and JWT from Key Vault, then performs HTTP GET requests
-to the specified webhook URL with command execution parameters and JWT authentication,
-verifying that the JSON responses conform to the expected schema.
+from webhook-executor hooks in a running webhook deployment via the webhook service using hooks.json routing. It sources Key Vault-related environment variables from the per-location hooks environment and will obtain a JWT via the bundled bin/New-WebhookExecutorToken when needed. The test performs HTTP GET requests to the webhook endpoint inside the container to exercise the hooks and validates the JSON responses.
 
 The script is designed for testing webhook-executor functionality without inspecting
 container internals, focusing solely on API behavior. It measures test execution time
 and reports pass/fail counts for each tested command.
 
-For each command specified:
 .IP "-" 2
-Sends a GET request to \fIwebhook-url\fR?hostname=\fItarget-host\fR&command=\fIcmd\fR
+Sends a GET request to the container webhook endpoint (webhook_url) with query parameters including the destination and command.
 .IP "-" 2
 Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
 .IP "-" 2
@@ -31,45 +28,35 @@ See the API Reference section in README.md for complete response schema document
 .B -h,--help
 Display usage information and exit.
 .TP
-.B --command CMD
-Required. One or more commands to execute and test. Each command is sent as a separate
-request. Commands should be simple shell commands that produce predictable output.
+.B --command COMMANDS
+Required. A semicolon-separated list of commands to execute and test (for example: "echo 'hello world'; ls").
+The script will split the provided string on semicolons and issue one request per command, preserving embedded
+spaces and quoting.
+.TP
+.B --container CONTAINER
+Required. The container name where the webhook service is running (the script uses this to determine the service IP).
 .TP
 .B --destination DESTINATION
-Required. The hostname parameter sent in webhook requests, typically the target machine
-for command execution.
+Required. The SSH destination used by the webhook route (e.g., user@host or ssh://user@host:port).
 .TP
-.B --webhook-url URL
-Required. The full URL of the webhook endpoint to test, including protocol, host, port,
-and path (e.g., https://localhost:9000/hooks/remote-mac).
-.TP
-.B --keyvault-url URL
-Required. The URL of the Azure Key Vault containing the JWT secret.
-.TP
-.B --secret-name NAME
-Required. The name of the secret in Key Vault that contains the JWT.
-.TP
-.B --service-principal-name NAME
-Required. The display name of the Azure service principal used for authentication.
-.TP
-.B --service-principal-password PASSWORD
-Required. The client secret of the Azure service principal.
+.B --location LOCATION
+Required. The location identifier used to discover the volume-based hooks environment (volumes/LOCATION/hooks.env).
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
 failures are reported but do not immediately terminate the script; all specified commands
 are tested.
 .SH EXAMPLES
-Test a single command on a local webhook:
+Test a single command against a running webhook in a container:
 .IP
-Test-WebhookExecutorIntegration --webhook-url https://localhost:9000/hooks/remote-mac --destination example.com --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command uptime
+Test-WebhookExecutorIntegration --container webhook-us-wa-dev --destination ssh://user@target-host:2222 --location us-wa --command "uptime"
 
-Test multiple commands:
+Test multiple commands (semicolon-separated):
 .IP
-Test-WebhookExecutorIntegration --webhook-url https://webhook.example.com/hooks/execute --destination server.local --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command "echo hello" --command "date" --command "whoami"
+Test-WebhookExecutorIntegration --container webhook-us-wa-dev --destination user@target-host --location us-wa --command "echo 'hello world'; date; whoami"
 
-Test with a remote webhook endpoint:
+Test with a remote target and additional commands:
 .IP
-Test-WebhookExecutorIntegration --webhook-url https://api.company.com/webhooks/exec --destination production-server --keyvault-url https://myvault.vault.azure.net --secret-name webhook-secret --service-principal-name webhook-executor-sp --service-principal-password secret123 --command "systemctl status nginx"
+Test-WebhookExecutorIntegration --container webhook-us-wa-dev --destination production-server --location us-wa --command "systemctl status nginx"
 .SH SEE ALSO
 .BR README.md (API Reference),
 .BR docker-webhook (1),

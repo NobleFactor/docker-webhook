@@ -5,8 +5,8 @@
 
 #compdef Test-WebhookExecutorIntegration
 _arguments \
-  '--command[Command to execute]' \
-  '--jwt[JWT token]' \
-  '--destination[Destination for test]' \
-  '--webhook-url[Webhook service URL]' \
+  '--command[Command to execute (semicolon-separated list)]' \
+  '--container[Container name running webhook service]' \
+  '--destination[Destination SSH target (user@host or ssh://host[:port])]' \
+  '--location[Webhook/location identifier]' \
   '--help[Show usage information and exit]'

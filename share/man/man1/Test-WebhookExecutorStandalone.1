@@ -5,7 +5,7 @@
 Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary with container provisioning
 .SH SYNOPSIS
 .B Test-WebhookExecutorStandalone
-\fI--location\fR \fILOCATION\fR \fI--token-name\fR \fITOKEN_NAME\fR \fI--service-principal-name\fR \fINAME\fR \fI--service-principal-password\fR \fIPASSWORD\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+\fI--location\fR \fILOCATION\fR \fI--command\fR \fICOMMANDS\fR [\fI--help\fR]
 .SH DESCRIPTION
 Test-WebhookExecutorStandalone is a black-box test script that validates the responses
 from the webhook-executor binary directly. It sources the hooks environment file for the specified location
@@ -42,34 +42,31 @@ See the API Reference section in README.md for complete response schema document
 .B -h,--help
 Display usage information and exit.
 .TP
-.B --command CMD
-Required. One or more commands to execute and test. Each command is sent as a separate
-request. Commands should be simple shell commands that produce predictable output.
+.B --command COMMANDS
+Required. A semicolon-separated list of commands to execute and test (for example: "echo 'hello world'; ls").
+The script splits the string on semicolons and executes each command in-order while preserving embedded
+spaces and quotes.
 .TP
 .B --location LOCATION
 Required. The location identifier (e.g., us-wa) used to source the hooks environment file
 from webhook.config/LOCATION/hooks.env and set WEBHOOK_CONFIG.
 .TP
-.B --token-name TOKEN_NAME
-Required. The name of the secret in Azure Key Vault containing the JWT token for authentication.
-.TP
-.B --service-principal-name NAME
-Required. The display name of the Azure service principal to query for credentials (client ID and tenant ID).
-.TP
-.B --service-principal-password PASSWORD
-Required. The client secret for the Azure service principal.
+.B --location LOCATION
+Required. The location identifier (e.g., us-wa). The test sources credentials and Key Vault-related variables
+from the location-specific hooks.env (webhook.config/LOCATION/hooks.env). The script may also invoke
+the bundled bin/New-WebhookExecutorToken to obtain or refresh a JWT token as needed.
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
 failures are reported but do not immediately terminate the script; all specified commands
 are tested.
 .SH EXAMPLES
-Test a single command with container provisioning:
+Test a single semicolon-separated command string:
 .IP
-Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --command uptime
+Test-WebhookExecutorStandalone --location us-wa --command "uptime"
 
-Test multiple commands:
+Test multiple commands (semicolon-separated):
 .IP
-Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --command "echo hello" --command "date" --command "whoami"
+Test-WebhookExecutorStandalone --location us-wa --command "echo 'hello world'; date; whoami"
 .SH SEE ALSO
 .BR README.md (API Reference),
 .BR docker-webhook (1),

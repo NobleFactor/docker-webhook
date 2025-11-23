@@ -138,7 +138,7 @@ None. This is optional for excluding integration tests.
 These are optional because the test suite can run without the integration test if excluded.
 .TP
 .B Test-WebhookExecutorStandalone
-Run Test-WebhookExecutorStandalone script directly against the binary with JWT from Key Vault and configurable commands (separated by ;). The script fetches Azure service principal credentials (client ID, tenant ID) using the service principal display name.
+Run `test/Test-WebhookExecutorStandalone` directly against the `webhook-executor` binary. Requires `LOCATION`; reads Key Vault configuration from `webhook.config/$(LOCATION)/hooks.env`, fetches the client secret from Key Vault using the configured `WEBHOOK_SP`/`WEBHOOK_SECRET_NAME`, and accepts test commands via `WEBHOOK_EXECUTOR_COMMAND` (semicolon-separated).
 .PP
 Variables Referenced in Test-WebhookExecutorStandalone Target
 .PP
@@ -157,16 +157,10 @@ Azure Key Vault URL for JWT retrieval.
 Name of the secret in Key Vault containing the JWT.
 .TP
 .B WEBHOOK_SP
-Display name of the Azure service principal for fetching credentials.
-.TP
-.B AZURE_CLIENT_SECRET
-Client secret for the Azure service principal.
+Name of the secret in Key Vault containing the Azure service principal client secret.
 .TP
 .B WEBHOOK_EXECUTOR_COMMAND
 Semicolon-separated list of commands to test (e.g., "echo hello;echo world").
-.TP
-.B WEBHOOK_EXECUTOR_DESTINATION
-Target destination for the webhook-executor (optional).
 .TP
 .B CONTAINER_HOSTNAME
 Derived as webhook-$(LOCATION)$(hostname_suffix).
@@ -203,9 +197,6 @@ webhook-$(LOCATION)-dev (e.g., webhook-us-wa-dev)
 .B WEBHOOK_TOKEN_NAME
 webhook-executor-$(LOCATION)-token (e.g., webhook-executor-us-wa-token)
 .TP
-.B WEBHOOK_EXECUTOR_DESTINATION
-Defaults to $(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME) (e.g., webhook-us-wa-dev.localdomain)
-.TP
 .B WEBHOOK_SP
 webhook-executor-sp
 .PP
@@ -226,10 +217,10 @@ Must be set (e.g., a secret string). The client secret for the Azure service pri
 .B WEBHOOK_EXECUTOR_COMMAND
 Must be set (e.g., via make WEBHOOK_EXECUTOR_COMMAND="echo hello"). Defines the commands the test will execute against the webhook-executor binary; without it, the test has no operations to validate.
 .PP
-These are mandatory because the test relies on Azure Key Vault for JWT-based authentication and requires specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error. Optional variables like WEBHOOK_EXECUTOR_DESTINATION fall back to defaults if unset.
+These are mandatory because the test relies on Azure Key Vault for JWT-based authentication and requires specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error.
 .TP
 .B Test-WebhookExecutorIntegration
-Run Test-WebhookExecutorIntegration script against the webhook with JWT from Key Vault and configurable commands (separated by ;). The script fetches Azure service principal credentials using the service principal display name.
+Run `test/Test-WebhookExecutorIntegration` against a running webhook service. This target requires both `DESTINATION` and `LOCATION`; it sources Key Vault variables from `volumes/$(LOCATION)/hooks.env`, uses `CONTAINER_HOSTNAME` as the container name when invoking the test, and passes `WEBHOOK_EXECUTOR_COMMAND` as a single `--command` argument (semicolon-separated). The test script splits the string on `;` and issues one request per command.
 .PP
 Variables Referenced in Test-WebhookExecutorIntegration Target
 .PP
@@ -255,9 +246,6 @@ Client secret for the Azure service principal.
 .TP
 .B WEBHOOK_EXECUTOR_COMMAND
 Semicolon-separated list of commands to test (e.g., "echo hello;echo world").
-.TP
-.B WEBHOOK_EXECUTOR_DESTINATION
-Target destination for the webhook-executor (optional).
 .TP
 .B CONTAINER_HOSTNAME
 Derived as webhook-$(LOCATION)$(hostname_suffix).
@@ -294,9 +282,6 @@ dev
 .B CONTAINER_HOSTNAME
 webhook-$(LOCATION)-dev (e.g., webhook-us-wa-dev)
 .TP
-.B WEBHOOK_EXECUTOR_DESTINATION
-Defaults to $(CONTAINER_HOSTNAME).$(CONTAINER_DOMAIN_NAME) (e.g., webhook-us-wa-dev.localdomain)
-.TP
 .B WEBHOOK_URL
 Not defined in makefile (assumed to be set externally, e.g., http://localhost:9000)
 .TP
@@ -326,7 +311,7 @@ Must be set (e.g., http://localhost:9000). Specifies the base URL of the running
 .B WEBHOOK_EXECUTOR
 Must be set (e.g., /webhook-executor). Specifies the endpoint path for the webhook-executor API.
 .PP
-These are mandatory because the test relies on Azure Key Vault for JWT-based authentication, requires a running webhook service for integration, and needs specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error. Optional variables like WEBHOOK_EXECUTOR_DESTINATION fall back to defaults if unset.
+These are mandatory because the test relies on Azure Key Vault for JWT-based authentication, requires a running webhook service for integration, and needs specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error.
 .TP
 .B Prepare-WebhookDeployment
 This target generates per-location compose and certificate-request files when the

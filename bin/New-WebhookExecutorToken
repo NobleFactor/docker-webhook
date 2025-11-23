@@ -11,23 +11,6 @@
 source "$(dirname "$0")/Declare-BashScript" "$0" "help,env-file:,algorithm:,grant-access-to:,keyvault-url:,location:,secret-name:,silent,token-name:" "h" "$@"
 
 ###########
-# Functions
-###########
-
-# Portable sed -i wrapper: supports GNU sed (Linux) and BSD sed (macOS)
-function sed_i() {
-    local sed_expr="$1"
-    shift
-    local file="$1"
-    shift
-    if sed --version >/dev/null 2>&1; then
-        sed -i "$sed_expr" "$file"
-    else
-        sed -i '' "$sed_expr" "$file"
-    fi
-}
-
-###########
 # Arguments
 ###########
 
@@ -99,10 +82,18 @@ fi
 
 # --grant-access-to
 
+if [[ ! -v grant_access_to ]]; then
+    declare -r grant_access_to="${WEBHOOK_SP:-}"
+fi
+
 if [[ -n ${grant_access_to:-} ]]; then
-    permit_principal_id=$(az ad sp list --display-name "$grant_access_to" --query "[0].appId" -o tsv 2>/dev/null || echo "")
-    if [[ -z "$permit_principal_id" ]]; then
+    azure_client_id=$(az ad sp list --display-name "$grant_access_to" --query "[0].appId" -o tsv 2>/dev/null || :)
+    if [[ -z "${azure_client_id:-}" ]]; then
         error 2 "Service principal name not found: ${grant_access_to}. If you intended to grant KeyVault get permissions, ensure the service principal exists and try again."
+    fi
+    azure_tenant_id=$(az account show --query tenantId -o tsv 2>/dev/null || :)
+    if [[ -z "${azure_tenant_id:-}" ]]; then
+        error 2 "Tenant ID is unavailable from Azure account ($(az account show --query name -o tsv 2>/dev/null || echo 'unknown'))."
     fi
 fi
 
@@ -136,7 +127,7 @@ if ! az account show >/dev/null 2>&1; then
     az login
 fi
 
-note "Generating JSON Web Token..."
+note "Generating auth token..."
 
 declare -r vault_name=$(echo "$keyvault_url" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
 
@@ -144,28 +135,28 @@ declare -r expires=$(python3 -c "import time; print(int(time.time()) + 24*3600)"
 declare -r payload="{\"iss\":\"webhook-executor\",\"sub\":\"${location}\",\"exp\":$expires}"
 declare -r secret=$(openssl rand -hex 128)
 
-declare -r jwt="$("${script_root}/New-JsonWebToken" --secret "$secret" --algorithm "$algorithm" --payload "$payload")"
+declare -r auth_token="$("${script_root}/New-JsonWebToken" --secret "$secret" --algorithm "$algorithm" --payload "$payload")"
 
 if [[ -n ${SILENT:-} ]]; then
     az keyvault secret set --vault-name "$vault_name" --name "$secret_name" --value "$secret" >/dev/null 2>&1
 else
-    az keyvault secret set --vault-name "$vault_name" --name "$secret_name" --value "$secret"
+    az keyvault secret set --vault-name "$vault_name" --name "$secret_name" --value "$secret" >&2
 fi
 
-if [[ -n ${permit_principal_id:-} ]]; then
+if [[ -n ${azure_client_id:-} ]]; then
 
     if [[ $(az keyvault show --name "$vault_name" --query "properties.enableRbacAuthorization" -o tsv) == true ]]; then
         declare -r scope="$(az keyvault show --name "$vault_name" --query "id" -o tsv)"
         if [[ -n ${SILENT:-} ]]; then
-            az role assignment create --assignee "$permit_principal_id" --role "Key Vault Secrets User" --scope "${scope}" >/dev/null 2>&1
+            az role assignment create --assignee "$azure_client_id" --role "Key Vault Secrets User" --scope "${scope}" >/dev/null 2>&1
         else
-            az role assignment create --assignee "$permit_principal_id" --role "Key Vault Secrets User" --scope "${scope}"
+            az role assignment create --assignee "$azure_client_id" --role "Key Vault Secrets User" --scope "${scope}" >&2
         fi
     else
         if [[ -n ${SILENT:-} ]]; then
-            az keyvault set-policy --name "$vault_name" --spn "$permit_principal_id" --secret-permissions get >/dev/null 2>&1
+            az keyvault set-policy --name "$vault_name" --spn "$azure_client_id" --secret-permissions get >/dev/null 2>&1
         else
-            az keyvault set-policy --name "$vault_name" --spn "$permit_principal_id" --secret-permissions get
+            az keyvault set-policy --name "$vault_name" --spn "$azure_client_id" --secret-permissions get >&2
         fi
     fi
 
@@ -176,26 +167,14 @@ note "Updating webhook.config/$location/hooks.env..."
 mkdir -p "webhook.config/$location"
 declare -r hooks_env="webhook.config/$location/hooks.env"
 
-if [[ -f "$hooks_env" ]]; then
-    if grep -q "^.*WEBHOOK_KEYVAULT_URL=" "$hooks_env"; then
-        sed_i "s|^.*WEBHOOK_KEYVAULT_URL=.*|export WEBHOOK_KEYVAULT_URL=$keyvault_url|" "$hooks_env"
-    else
-        echo "export WEBHOOK_KEYVAULT_URL=$keyvault_url" >>"$hooks_env"
-    fi
-    if grep -q "^.*WEBHOOK_SECRET_NAME=" "$hooks_env"; then
-        sed_i "s|^.*WEBHOOK_SECRET_NAME=.*|export WEBHOOK_SECRET_NAME=$secret_name|" "$hooks_env"
-    else
-        echo "export WEBHOOK_SECRET_NAME=$secret_name" >>"$hooks_env"
-    fi
-    if grep -q "^.*WEBHOOK_LOCATION=" "$hooks_env"; then
-        sed_i "s|^.*WEBHOOK_LOCATION=.*|export WEBHOOK_LOCATION=$location|" "$hooks_env"
-    else
-        echo "export WEBHOOK_LOCATION=$location" >>"$hooks_env"
-    fi
-else
-    echo "export WEBHOOK_KEYVAULT_URL=$keyvault_url" >"$hooks_env"
-    echo "export WEBHOOK_SECRET_NAME=$secret_name" >>"$hooks_env"
-    echo "export WEBHOOK_LOCATION=$location" >>"$hooks_env"
-fi
+"${script_root}/Update-WebhookExecutorEnv.awk" \
+    -i inplace \
+    -v azure_client_id="${azure_client_id:-}" \
+    -v azure_tenant_id="${azure_tenant_id:-}" \
+    -v grant_access_to="${grant_access_to:-}" \
+    -v keyvault_url="$keyvault_url" \
+    -v secret_name="$secret_name" \
+    -v location="$location" \
+    "$hooks_env"
 
-echo ${jwt}
+echo ${auth_token}
