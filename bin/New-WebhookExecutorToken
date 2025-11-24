@@ -164,8 +164,12 @@ fi
 
 note "Updating webhook.config/$location/hooks.env..."
 
-mkdir -p "webhook.config/$location"
 declare -r hooks_env="webhook.config/$location/hooks.env"
+
+if [[ ! -f ${hooks_env} ]]; then
+    mkdir -p "webhook.config/$location"
+    touch "${hooks_env}"
+fi
 
 "${script_root}/Update-WebhookExecutorEnv.awk" \
     -i inplace \

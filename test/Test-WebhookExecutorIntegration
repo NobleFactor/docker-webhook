@@ -23,20 +23,24 @@ declare -r curl_timeout=10
 function test_command {
 
     local cmd="$1"
-    location correlationId="$(uuidgen)"
+    local correlationId="$(uuidgen)"
 
     note "==> Testing command: $cmd"
 
-    local response=$(curl --silent --insecure --max-time "$curl_timeout" -H "Authorization: Bearer ${auth_token}" \
-        "${webhook_url}?destination=${destination}&command=${cmd}&correlationId=${correlationId}")
+    local response=$(curl --silent --insecure --max-time "$curl_timeout" \
+        -H "Authorization: Bearer ${auth_token}" \
+        -G "${webhook_url}" \
+        --data-urlencode "destination=${destination}" \
+        --data-urlencode "command=${cmd}" \
+        --data-urlencode "correlationId=${correlationId}")
 
     if [[ -z "$response" ]]; then
-        error 0 "FAIL: No response from $cmd"
+        error 0 "FAIL: No response from ${webhook_url} for $cmd."
         return 1
     fi
 
     if ! echo "$response" | jq -e '.exit_code and .reason and (.error == null or type == "string") and has("stdout") and has("stderr")' >/dev/null 2>&1; then
-        error 0 "FAIL: Invalid JSON response for $cmd: $response"
+        error 0 "FAIL: Invalid response from ${webhook_url} for $cmd: $response"
         return 1
     fi
 
@@ -122,7 +126,7 @@ if [[ -z ${destination:-} ]]; then
     error 2 "An SSH destination is required."
 fi
 
-if ! echo "$destination" | grep -E '^(ssh://([a-zA-Z0-9_]+@)?([a-zA-Z0-9_.-]+)(:[0-9]+)?|([a-zA-Z0-9_]+@)?([a-zA-Z0-9_.-]+))$' >/dev/null; then
+if ! echo "$destination" | grep -E '^(ssh://)?([A-Za-z0-9_][-A-Za-z0-9_.]*@)?(\[[0-9A-Fa-f:%.]+\]|[0-9]{1,3}(\.[0-9]{1,3}){3}|[A-Za-z0-9][-A-Za-z0-9_.]*)(:[0-9]{1,5})?$' >/dev/null; then
     error 2 "Invalid SSH destination format: $destination (must be [user@]host or ssh://[user@]host[:port])"
 fi
 
@@ -156,13 +160,13 @@ fi
 
 # Extract webhook URL using container's IP and internal port
 
-declare -r container_ip=$(sudo docker inspect ${container} --format '{{.NetworkSettings.IPAddress}}')
+declare -r container_ip=$(sudo docker inspect ${container} --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
 
 if [[ -z "$container_ip" ]]; then
     error 1 "Unable to determine container IP address for ${container}"
 fi
 
-declare -r webhook_url="http://${container_ip}:9000/hooks/"
+declare -r webhook_url="https://${container_ip}:9000/hooks/"
 declare -r auth_token="$(bin/New-WebhookExecutorToken --silent)"
 
 note "Starting webhook deployment tests for destination: $destination"

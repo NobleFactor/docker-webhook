@@ -6,10 +6,12 @@ BEGIN {
     # Array of keys to potentially update
     keys["AZURE_CLIENT_ID"] = azure_client_id
     keys["AZURE_TENANT_ID"] = azure_tenant_id
-    keys["WEBHOOK_SP"] = grant_access_to
     keys["WEBHOOK_KEYVAULT_URL"] = keyvault_url
-    keys["WEBHOOK_SECRET_NAME"] = secret_name
     keys["WEBHOOK_LOCATION"] = location
+    keys["WEBHOOK_SECRET_NAME"] = secret_name
+    keys["WEBHOOK_SP"] = grant_access_to
+    keys["WEBHOOK_TOKEN_REFRESH_WINDOW"] = "5m"
+    keys["WEBHOOK_TOKEN_TTL"] = "24h"
     
     # Only include Azure and SP keys if azure_client_id is set
     if (azure_client_id == "") {
@@ -36,8 +38,12 @@ BEGIN {
 }
 
 END {
+    # Build a sorted array of key names
+    n = asorti(keys, sorted_keys)
+
     # Append any keys that weren't found in the file
-    for (key in keys) {
+    for (i = 1; i <= n; i++) {
+        key = sorted_keys[i]
         print "export " key "=" keys[key]
     }
 }

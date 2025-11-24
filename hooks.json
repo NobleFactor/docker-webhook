@@ -1,0 +1,35 @@
+[
+  {
+    "id": "remote-mac",
+    "execute-command": "/usr/local/bin/webhook-executor",
+    "pass-arguments-to-command": [
+      { "source": "query", "name": "destination" },
+      { "source": "query", "name": "command" },
+      { "source": "query", "name": "correlationId" },
+      { "source": "header", "name": "Authorization" },
+      { "source": "header", "name": "X-Forwarded-For" }
+    ],
+    "include-command-output-in-response": true,
+    "response-headers": [
+      { "name": "Content-Type", "value": "application/json" }
+    ],
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": { "source": "query", "name": "command" },
+            "value": "^(Start-MacSleep|Stop-MacWakeup|Get-MacStatus)$",
+            "regexp": true
+          }
+        },
+        {
+          "match": {
+            "type": "ip-whitelist",
+            "ip-range": "127.0.0.1/32 ::1/128"
+          }
+        }
+      ]
+    }
+  }
+]
