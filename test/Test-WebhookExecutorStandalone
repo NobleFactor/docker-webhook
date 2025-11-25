@@ -109,7 +109,7 @@ source "$hooks_env"
 # Fetch AZURE_CLIENT_SECRET from key vault
 
 declare -r vault_name=$(echo "$WEBHOOK_KEYVAULT_URL" | awk '{ gsub(/https:\/\//, ""); sub(/\.vault\.azure\.net.*/, ""); print }')
-export AZURE_CLIENT_SECRET="$(az keyvault secret show --vault-name "$vault_name" --name "$WEBHOOK_SP-password" --query value -o tsv)"
+export AZURE_CLIENT_SECRET="$(az keyvault secret show --vault-name "$vault_name" --name "$WEBHOOK_AZURE_CLIENT_NAME-password" --query value -o tsv)"
 
 # Ensure that webhook-executor can locate its location-based configuration
 

@@ -169,10 +169,13 @@ Returns JSON with consistent schema:
 
 ```json
 {
-  "status": 0,
-  "reason": "OK",
-  "correlationId": "uuid-v4-string",
-  "error": null
+   "status": 0,
+   "reason": "OK",
+   "stdout": "",
+   "stderr": "",
+   "error": null,
+   "authToken": null,
+   "correlationId": "uuid-v4-string"
 }
 ```
 
@@ -190,6 +193,8 @@ Returns JSON with consistent schema:
 - UUID-prefixed log messages for traceability
 - Structured logging with correlation ID context
 - Error details logged with full context
+  
+Note: webhook-executor writes diagnostic logs to the container logging pipeline when possible (it attempts to open /proc/1/fd/2 and send logs there; if unavailable it falls back to the process' stderr). This keeps executor diagnostic output out of any command-capture/response bodies returned by a caller (e.g. the webhook server) while still preserving logs in the container's log collection (s6, journald, or docker logs).
 
 ### Security
 
@@ -217,5 +222,13 @@ This passes `--X-Forwarded-For "<ip-chain>"` which webhook-executor parses into 
 Output:
 
 ```json
-{"status":0,"reason":"OK","correlationId":"550e8400-e29b-41d4-a716-446655440000","error":null}
+{
+   "status": 0,
+   "reason": "OK",
+   "stdout": "",
+   "stderr": "",
+   "error": null,
+   "authToken": null,
+   "correlationId": "550e8400-e29b-41d4-a716-446655440000"
+}
 ```

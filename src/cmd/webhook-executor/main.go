@@ -3,160 +3,172 @@
 package main
 
 import (
-    "encoding/json"
-    "fmt"
-    "log"
-    "os"
-    "net/url"
-    "strings"
-    "time"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/url"
+	"os"
+	"strings"
+	"time"
 
-    "github.com/NobleFactor/docker-webhook/cmd/internal/argparse"
-    "github.com/NobleFactor/docker-webhook/cmd/internal/azure"
-    "github.com/NobleFactor/docker-webhook/cmd/internal/jwt"
-    "github.com/NobleFactor/docker-webhook/cmd/internal/sshremote"
-    "github.com/google/uuid"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/argparse"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/azure"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/jwt"
+	"github.com/NobleFactor/docker-webhook/cmd/internal/sshremote"
+	"github.com/google/uuid"
 )
 
 func main() {
 
-    log.SetPrefix("[webhook-executor] ")
+	log.SetPrefix("[webhook-executor] ")
 
-    parsed, err := argparse.ParseArguments(os.Args[1:])
-    if err != nil {
-        log.Printf("[ERROR] %v", err)
-        errorStr := err.Error()
-        outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: ""})
-        return
-    }
+	// Try to send diagnostic logs into the container logger (s6 / PID 1 stderr) so they are not captured by parent
+	// processes that capture the child's stdout/stderr (for example, webhook's CombinedOutput). Fall back to the
+	// process' stderr if /proc/1/fd/2 is unavailable.
 
-    correlationId := parsed.CorrelationId
-    if correlationId == "" {
-        correlationId = uuid.New().String()
-    }
+	if logFile, err := os.OpenFile("/proc/1/fd/2", os.O_WRONLY|os.O_APPEND, 0); err == nil {
+		// Keep writer open for the lifetime of the process so logs reliably go into PID 1's stderr (s6/syslog) instead
+		// of being captured by a parent that may pipe the child's output.
+		log.SetOutput(logFile)
+	} else {
+		log.SetOutput(os.Stderr)
+	}
 
-    log.SetPrefix(fmt.Sprintf("[%s] ", correlationId))
+	parsed, err := argparse.ParseArguments(os.Args[1:])
+	if err != nil {
+		log.Printf("[ERROR] %v", err)
+		errorStr := err.Error()
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: ""})
+		return
+	}
 
-    log.Printf("Arguments parsed successfully: destination=%s, command=%s, client-ips=%v", parsed.Destination, parsed.Command, parsed.ClientIps)
+	correlationId := parsed.CorrelationId
+	if correlationId == "" {
+		correlationId = uuid.New().String()
+	}
 
-    // Validate environment early
+	log.SetPrefix(fmt.Sprintf("[webhook-executor][%s] ", correlationId))
 
-    keyVaultURL, err := getKeyVaultURL()
-    if err != nil {
-        message := err.Error()
-        log.Printf("[ERROR] %s", message)
-        outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	log.Printf("Arguments parsed successfully: destination=%s, command=%s, client-ips=%v", parsed.Destination, parsed.Command, parsed.ClientIps)
 
-    secretName, err := getSecretName()
-    if err != nil {
-        message := err.Error()
-        log.Printf("[ERROR] %s", message)
-        outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	// Validate environment early
 
-    configDirectory, err := getConfigDirectory()
-    if err != nil {
-        message := err.Error()
-        log.Printf("[ERROR] %s", message)
-        outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	keyVaultURL, err := getKeyVaultURL()
+	if err != nil {
+		message := err.Error()
+		log.Printf("[ERROR] %s", message)
+		outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    location, _ := getLocation()
+	secretName, err := getSecretName()
+	if err != nil {
+		message := err.Error()
+		log.Printf("[ERROR] %s", message)
+		outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    tokenTtl, err := getTokenTtl()
-    if err != nil {
-        message := err.Error()
-        log.Printf("[ERROR] %s", message)
-        outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	configDirectory, err := getConfigDirectory()
+	if err != nil {
+		message := err.Error()
+		log.Printf("[ERROR] %s", message)
+		outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    tokenRefreshWindow, err := getTokenRefreshWindow()
-    if err != nil {
-        message := err.Error()
-        log.Printf("[ERROR] %s", message)
-        outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	location, _ := getLocation()
 
-    log.Printf("WEBHOOK_KEYVAULT_URL         : %s", keyVaultURL)
-    log.Printf("WEBHOOK_SECRET_NAME          : %s", secretName)
-    log.Printf("WEBHOOK_CONFIG               : %s", configDirectory)
-    log.Printf("WEBHOOK_LOCATION             : %s", location)
-    log.Printf("WEBHOOK_TOKEN_TTL            : %s", tokenTtl)
-    log.Printf("WEBHOOK_TOKEN_REFRESH_WINDOW : %s", tokenRefreshWindow)
+	tokenTtl, err := getTokenTtl()
+	if err != nil {
+		message := err.Error()
+		log.Printf("[ERROR] %s", message)
+		outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    destination := parsed.Destination
-    command := parsed.Command
-    authHeader := parsed.AuthHeader // Fetch JWT secret from Azure Key Vault (once)
+	tokenRefreshWindow, err := getTokenRefreshWindow()
+	if err != nil {
+		message := err.Error()
+		log.Printf("[ERROR] %s", message)
+		outputJson(sshremote.Response{Error: &message, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    var jwtSecret []byte
+	log.Printf("WEBHOOK_KEYVAULT_URL         : %s", keyVaultURL)
+	log.Printf("WEBHOOK_CONFIG               : %s", configDirectory)
+	log.Printf("WEBHOOK_LOCATION             : %s", location)
+	log.Printf("WEBHOOK_TOKEN_SECRET_NAME    : %s", secretName)
+	log.Printf("WEBHOOK_TOKEN_TTL            : %s", tokenTtl)
+	log.Printf("WEBHOOK_TOKEN_REFRESH_WINDOW : %s", tokenRefreshWindow)
 
-    if authHeader != "" {
-        var err error
-        jwtSecret, err = azure.FetchSecretFromKeyVault(keyVaultURL, secretName)
-        if err != nil {
-            log.Printf("[ERROR] Failed to fetch JWT secret from Azure Key Vault: %v", err)
-            errorStr := fmt.Sprintf("failed to fetch JWT secret: %v", err)
-            outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-            return
-        }
-        log.Printf("JWT secret fetched successfully from Azure Key Vault")
-    }
+	destination := parsed.Destination
+	command := parsed.Command
+	authHeader := parsed.AuthHeader // Fetch JWT secret from Azure Key Vault (once)
 
-    // Validate JWT (required) — returns parsed token for reuse by refresh
+	var jwtSecret []byte
 
-    tokenStr, parsedToken, err := jwt.ValidateJWT(authHeader, string(jwtSecret), location)
-    if err != nil {
-        log.Printf("[ERROR] JWT validation failed: %v", err)
-        errorStr := "invalid JWT"
-        outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	if authHeader != "" {
+		var err error
+		jwtSecret, err = azure.FetchSecretFromKeyVault(keyVaultURL, secretName)
+		if err != nil {
+			log.Printf("[ERROR] Failed to fetch JWT secret from Azure Key Vault: %v", err)
+			errorStr := fmt.Sprintf("failed to fetch JWT secret: %v", err)
+			outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+			return
+		}
+		log.Printf("JWT secret fetched successfully from Azure Key Vault")
+	}
 
-    log.Printf("JWT validation successful")
+	// Validate JWT (required) — returns parsed token for reuse by refresh
 
-    // Attempt to refresh the token. Field name in response: `authToken` (string)
-    
-    var refreshedToken string
-    
-    if authHeader != "" && len(jwtSecret) > 0 {
-        // Refresh if token is within configured window; new TTL = configured value
-        newTok, refreshed, err := jwt.RefreshJWT(parsedToken, tokenStr, string(jwtSecret), location, tokenRefreshWindow, tokenTtl)
-        if err != nil {
-            log.Printf("[WARN] token refresh attempt failed: %v", err)
-        } else {
-            // always capture the token returned (either refreshed or the original)
-            refreshedToken = newTok
-            if refreshed {
-                log.Printf("JWT was refreshed for subject %s", location)
-            }
-        }
-    }
+	tokenStr, parsedToken, err := jwt.ValidateJWT(authHeader, string(jwtSecret), location)
+	if err != nil {
+		log.Printf("[ERROR] JWT validation failed: %v", err)
+		errorStr := "invalid JWT"
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
 
-    // Execute the remote command
+	log.Printf("JWT validation successful")
 
-    log.Printf("Executing remote SSH command: ssh %s %s", destination, command)
+	// Attempt to refresh the token. Field name in response: `authToken` (string)
 
-    destination, clientConfig, err := sshremote.ParseSshDestination(destination, configDirectory)
-    if err != nil {
-        log.Printf("[ERROR] SSH destination parsing failed: %v", err)
-        errorStr := "invalid SSH destination"
-        outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
-        return
-    }
+	var refreshedToken string
 
-    response := sshremote.ExecuteRemoteCommand(destination, clientConfig, command)
-    response.CorrelationId = correlationId
-    if refreshedToken != "" {
-        response.AuthToken = &refreshedToken
-    }
-    log.Printf("Remote SSH command execution completed")
-    outputJson(response)
+	if authHeader != "" && len(jwtSecret) > 0 {
+		// Refresh if token is within configured window; new TTL = configured value
+		newTok, refreshed, err := jwt.RefreshJWT(parsedToken, tokenStr, string(jwtSecret), location, tokenRefreshWindow, tokenTtl)
+		if err != nil {
+			log.Printf("[WARN] token refresh attempt failed: %v", err)
+		} else {
+			// always capture the token returned (either refreshed or the original)
+			refreshedToken = newTok
+			if refreshed {
+				log.Printf("JWT was refreshed for subject %s", location)
+			}
+		}
+	}
+
+	// Execute the remote command
+
+	log.Printf("Executing remote SSH command: ssh %s %s", destination, command)
+
+	destination, clientConfig, err := sshremote.ParseSshDestination(destination, configDirectory)
+	if err != nil {
+		log.Printf("[ERROR] SSH destination parsing failed: %v", err)
+		errorStr := "invalid SSH destination"
+		outputJson(sshremote.Response{Error: &errorStr, Status: -1, Reason: "Executor Error", CorrelationId: correlationId})
+		return
+	}
+
+	response := sshremote.ExecuteRemoteCommand(destination, clientConfig, command)
+	response.CorrelationId = correlationId
+	if refreshedToken != "" {
+		response.AuthToken = &refreshedToken
+	}
+	log.Printf("Remote SSH command execution completed")
+	outputJson(response)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -165,50 +177,50 @@ func main() {
 
 // Validates the value of WEBHOOK_KEYVAULT_URL
 func getKeyVaultURL() (string, error) {
-    u := getenvOrDefault("WEBHOOK_KEYVAULT_URL", "")
-    if strings.TrimSpace(u) == "" {
-        return "", fmt.Errorf("WEBHOOK_KEYVAULT_URL is required")
-    }
-    if p, err := url.Parse(u); err != nil || p.Scheme != "https" || !strings.HasSuffix(p.Host, ".vault.azure.net") {
-        return "", fmt.Errorf("invalid WEBHOOK_KEYVAULT_URL: %s", u)
-    }
-    return u, nil
+	u := getenvOrDefault("WEBHOOK_KEYVAULT_URL", "")
+	if strings.TrimSpace(u) == "" {
+		return "", fmt.Errorf("WEBHOOK_KEYVAULT_URL is required")
+	}
+	if p, err := url.Parse(u); err != nil || p.Scheme != "https" || !strings.HasSuffix(p.Host, ".vault.azure.net") {
+		return "", fmt.Errorf("invalid WEBHOOK_KEYVAULT_URL: %s", u)
+	}
+	return u, nil
 }
 
-// Validates the value of WEBHOOK_SECRET_NAME
+// Validates the value of WEBHOOK_TOKEN_SECRET_NAME
 func getSecretName() (string, error) {
-    s := getenvOrDefault("WEBHOOK_SECRET_NAME", "")
-    if strings.TrimSpace(s) == "" {
-        return "", fmt.Errorf("WEBHOOK_SECRET_NAME is required")
-    }
-    return s, nil
+	s := getenvOrDefault("WEBHOOK_TOKEN_SECRET_NAME", "")
+	if strings.TrimSpace(s) == "" {
+		return "", fmt.Errorf("WEBHOOK_TOKEN_SECRET_NAME is required")
+	}
+	return s, nil
 }
 
 // Validates the value of WEBHOOK_CONFIG
 func getConfigDirectory() (string, error) {
-    p := getenvOrDefault("WEBHOOK_CONFIG", "")
-    if strings.TrimSpace(p) == "" {
-        return "", fmt.Errorf("WEBHOOK_CONFIG is required")
-    }
-    if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
-        return "", fmt.Errorf("WEBHOOK_CONFIG does not exist or is not a directory: %s", p)
-    }
-    return p, nil
+	p := getenvOrDefault("WEBHOOK_CONFIG", "")
+	if strings.TrimSpace(p) == "" {
+		return "", fmt.Errorf("WEBHOOK_CONFIG is required")
+	}
+	if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
+		return "", fmt.Errorf("WEBHOOK_CONFIG does not exist or is not a directory: %s", p)
+	}
+	return p, nil
 }
 
 // Validates the value of WEBHOOK_LOCATION
-func getLocation() (string, error) { 
-    return getenvOrDefault("WEBHOOK_LOCATION", ""), nil 
+func getLocation() (string, error) {
+	return getenvOrDefault("WEBHOOK_LOCATION", ""), nil
 }
 
 // Validates the value of WEBHOOK_TOKEN_TTL
-func getTokenTtl() (time.Duration, error) { 
-    return parseDurationEnv("WEBHOOK_TOKEN_TTL", "24h") 
+func getTokenTtl() (time.Duration, error) {
+	return parseDurationEnv("WEBHOOK_TOKEN_TTL", "24h")
 }
 
 // Validates the value of WEBHOOK_TOKEN_REFRESH_WINDOW
-func getTokenRefreshWindow() (time.Duration, error) { 
-    return parseDurationEnv("WEBHOOK_TOKEN_REFRESH_WINDOW", "5m") 
+func getTokenRefreshWindow() (time.Duration, error) {
+	return parseDurationEnv("WEBHOOK_TOKEN_REFRESH_WINDOW", "5m")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -217,26 +229,26 @@ func getTokenRefreshWindow() (time.Duration, error) {
 
 // Get the value of an environment variable or a default if it's blank
 func getenvOrDefault(key, def string) string {
-    if value := os.Getenv(key); value != "" {
-        return value
-    }
-    return def
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return def
 }
 
 // Convert an SSH remote response to its JSON representation
 func outputJson(resp sshremote.Response) {
-    b, err := json.Marshal(resp)
-    if err != nil {
-        log.Fatalf("failed to marshal JSON: %v", err)
-    }
-    fmt.Println(string(b))
+	b, err := json.Marshal(resp)
+	if err != nil {
+		log.Fatalf("failed to marshal JSON: %v", err)
+	}
+	fmt.Println(string(b))
 }
 
 func parseDurationEnv(key, def string) (time.Duration, error) {
-    s := getenvOrDefault(key, def)
-    d, err := time.ParseDuration(s)
-    if err != nil {
-        return 0, fmt.Errorf("invalid %s: %v", key, err)
-    }
-    return d, nil
+	s := getenvOrDefault(key, def)
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %v", key, err)
+	}
+	return d, nil
 }

@@ -42,26 +42,19 @@ override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 
 ### WEBHOOK_EXECUTOR_* Variables
 
-WEBHOOK_EXECUTOR_EXCLUDE     ?= false
-WEBHOOK_JWT_ALGORITHM        ?= HS512
-WEBHOOK_JWT_PAYLOAD          ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+24 hours" +%s)}
-WEBHOOK_KEYVAULT_URL         ?=
-WEBHOOK_SECRET_NAME          ?= webhook-executor-$(LOCATION)-secret
-WEBHOOK_TOKEN_NAME           ?= webhook-executor-$(LOCATION)-token
-WEBHOOK_SP                   ?= webhook-executor-sp
+WEBHOOK_EXECUTOR_EXCLUDE         ?= false
+WEBHOOK_KEYVAULT_NAME            ?=
+WEBHOOK_TOKEN_SECRET_NAME        ?= webhook-executor-$(LOCATION)-secret
+WEBHOOK_TOKEN_ALGORITHM          ?= HS512
+WEBHOOK_TOKEN_PAYLOAD            ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+24 hours" +%s)}
+WEBHOOK_AZURE_CLIENT_NAME        ?= webhook-executor-sp
+WEBHOOK_AZURE_CLIENT_SECRET_NAME ?= ${WEBHOOK_AZURE_CLIENT_NAME}-password
 
 ### Azure Authentication Variables
 
 AZURE_CLIENT_SECRET ?=
 AZURE_CLIENT_ID     ?=
 AZURE_TENANT_ID     ?=
-
-# If AZURE_CLIENT_SECRET hasn't been provided via environment or CLI, lazily
-# fetch it from the configured Key Vault when the variable is expanded by make.
-ifndef AZURE_CLIENT_SECRET
-AZURE_VAULT_NAME = $(shell echo "$(WEBHOOK_KEYVAULT_URL)" | sed 's|https://||; s|\.vault\.azure\.net.*||')
-AZURE_CLIENT_SECRET = $(shell if [ -n "$(WEBHOOK_KEYVAULT_URL)" ]; then az keyvault secret show --vault-name "$(AZURE_VAULT_NAME)" --name "$(WEBHOOK_SP)-password" --query value -o tsv; fi)
-endif
 
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
@@ -75,13 +68,9 @@ IP_RANGE ?=
 
 S6_OVERLAY_VERSION ?= 3.2.1.0
 
-### WEBHOOK_EXECUTOR
-
-WEBHOOK_EXECUTOR ?=
-
 ### WEBHOOK_PGID
 
-WEBHOOK_PGID ?= 
+WEBHOOK_PGID ?=
 
 ### WEBHOOK_PORT
 
@@ -193,7 +182,9 @@ docker_compose := sudo \
     WEBHOOK_IMAGE="$(IMAGE)" \
     WEBHOOK_PORT="$(WEBHOOK_PORT)" \
 	WEBHOOK_PUID="$(WEBHOOK_PUID)" \
-	WEBHOOK_GUID="$(WEBHOOK_PGID)" \
+	WEBHOOK_PGID="$(WEBHOOK_PGID)" \
+    WEBHOOK_VOLUME="${volume_root}" \
+	AZURE_CLIENT_SECRET="$${AZURE_CLIENT_SECRET:-}" \
     docker compose -f "$(project_file)" -f "$(project_networks_file)"
 
 HELP_COLWIDTH ?= 28
@@ -281,58 +272,21 @@ Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	echo "==> Running Test-ShellScript"
 	./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
-Test-WebhookExecutorIntegration: ## Run `test/Test-WebhookExecutorIntegration` against the webhook; requires `DESTINATION` and `LOCATION`, uses `CONTAINER_HOSTNAME` for the container name and reads Key Vault settings from `volumes/$(LOCATION)/hooks.env`; commands are provided via `WEBHOOK_EXECUTOR_COMMAND` (separated by `;`)
+Test-WebhookExecutorIntegration: ## Run `test/Test-WebhookExecutorIntegration` against the webhook; requires `DESTINATION` and `LOCATION`, uses `CONTAINER_HOSTNAME` for the container name and reads Key Vault settings from `volumes/$(LOCATION)/hooks.env`; commands are provided via `COMMAND` (separated by `;`)
 	$(if $(CONTAINER_HOSTNAME),, $(error CONTAINER_HOSTNAME not set))
 	$(if $(DESTINATION),, $(error DESTINATION not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
-
-	$(MAKE) clean Sync-WebhookConfig New-Webhook Start-Webhook
-	hooks_env="volumes/$(LOCATION)/hooks.env"
-
-	if [[ ! -f "$$hooks_env" ]]; then
-		echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config."
-		exit 1
-	fi
-
-	source "$$hooks_env"
-
-	if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
-		echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
-		exit 1
-	fi
-
-	if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
-		echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
-		exit 1
-	fi
-
-	echo "==> Running Test-WebhookExecutorIntegration with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
-	./test/Test-WebhookExecutorIntegration --container "$(CONTAINER_HOSTNAME)" --location "$(LOCATION)" --destination "$(DESTINATION)" --command "$(WEBHOOK_EXECUTOR_COMMAND)"
+	$(if $(TRIGGER),, $(error TRIGGER not set))
+	$(if $(COMMAND),, $(error COMMAND not set))
+	echo "==> Running Test-WebhookExecutorIntegration with commands: $(COMMAND)"
+	./test/Test-WebhookExecutorIntegration --container "$(CONTAINER_HOSTNAME)" --location "$(LOCATION)" --destination "$(DESTINATION)" --trigger "$(TRIGGER)" --command "$(COMMAND)"
 
 Test-WebhookExecutorStandalone: ## Run `test/Test-WebhookExecutorStandalone` directly against the binary; reads `webhook.config/$(LOCATION)/hooks.env` for Key Vault and secret configuration and accepts commands via `WEBHOOK_EXECUTOR_COMMAND` (separated by `;`)
+	$(if $(COMMAND),, $(error COMMAND not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
-	hooks_env="webhook.config/$(LOCATION)/hooks.env"
-
-	if [[ ! -f "$$hooks_env" ]]; then
-		echo "Error: $$hooks_env does not exist. Run Update-WebhookHooksEnv or set up deployment config manually."
-		exit 1
-	fi
-
-	source "$$hooks_env"
-
-	if [[ -z "$$WEBHOOK_SECRET_NAME" ]]; then
-		echo "Error: WEBHOOK_SECRET_NAME not set in $$hooks_env"
-		exit 1
-	fi
-
-	if [[ -z "$$WEBHOOK_KEYVAULT_URL" ]]; then
-		echo "Error: WEBHOOK_KEYVAULT_URL not set in $$hooks_env"
-		exit 1
-	fi
-
-	echo "==> Running Test-WebhookExecutorStandalone with commands: $(WEBHOOK_EXECUTOR_COMMAND)"
-	./test/Test-WebhookExecutorStandalone --location "$(LOCATION)" --command "$(WEBHOOK_EXECUTOR_COMMAND)"
+	echo "==> Running Test-WebhookExecutorStandalone with commands: $(COMMAND)"
+	./test/Test-WebhookExecutorStandalone --location "$(LOCATION)" --command "$(COMMAND)"
 
 Test-WebhookDeploymentPreparation:
 	echo "==> Running Test-DockerLocationGeneration"
@@ -348,7 +302,7 @@ Test-WebhookReadiness:
 
 Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than webhook-$(LOCATION).env
 	env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
-	if [[ ! -f "$$env_file" ]]; then
+	if [[ ! -f "$$env_file" ]]; thenmak
 		echo "Missing environment file: $$env_file"
 		exit 1
 	fi
@@ -375,6 +329,7 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	chmod 600 * && chmod 700 .
 
 New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_env) ## Create container from existing image and prepare volumes
+	$(if $(WEBHOOK_KEYVAULT_NAME),, $(error WEBHOOK_KEYVAULT_NAME not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
 	if [[ "$(network_driver)" == "macvlan" && -z "$(IP_RANGE)" ]]; then
@@ -390,13 +345,11 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	fi
 
 	$(docker_compose) stop
-
 	$(MAKE) Sync-WebhookConfig
 	bin/New-DockerNetwork --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
-	source "volumes/$(LOCATION)/hooks.env"
-	vault_name=$(echo "$$WEBHOOK_KEYVAULT_URL" | awk '{gsub("^https://", ""); gsub("\\.vault\\.azure\\.net.*$", "")} 1')
-	export AZURE_CLIENT_SECRET=$(az keyvault secret show --vault-name "$vault_name" --name "$(WEBHOOK_SECRET_NAME)" --query value -o tsv)
 
+	export AZURE_CLIENT_SECRET="$$(az keyvault secret show --vault-name "$(WEBHOOK_KEYVAULT_NAME)" --name "$(WEBHOOK_AZURE_CLIENT_SECRET_NAME)" --query value -o tsv)"
+	source "volumes/$(LOCATION)/hooks.env"
 	$(docker_compose) create --force-recreate --pull never --remove-orphans
 
 	sudo docker inspect "$(CONTAINER_HOSTNAME)"
@@ -404,7 +357,14 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	echo "    Start Webhook in $(LOCATION): make Start-Webhook [IP_ADDRESS=<IP_ADDRESS>]"
 
 New-WebhookExecutorToken: ## Generate a new auth token with a new random secret, save the random secret to Azure Key Vault, and output the auth token to stdout
-	./bin/New-WebhookExecutorToken --silent --keyvault-url "$(WEBHOOK_KEYVAULT_URL)" --algorithm "$(WEBHOOK_JWT_ALGORITHM)" --grant-access-to "$(WEBHOOK_SP)" --location "$(LOCATION)" --secret-name "$(WEBHOOK_SECRET_NAME)"
+	$(if $(WEBHOOK_KEYVAULT_NAME),, $(error WEBHOOK_KEYVAULT_NAME not set))
+	$(if $(LOCATION),, $(error LOCATION not set))
+	./bin/New-WebhookExecutorToken --silent \
+		--algorithm "$(WEBHOOK_TOKEN_ALGORITHM)" \
+		--grant-access-to "$(WEBHOOK_AZURE_CLIENT_NAME)" \
+		--keyvault-name "$(WEBHOOK_KEYVAULT_NAME)" \
+		--location "$(LOCATION)" \
+		--secret-name "$(WEBHOOK_TOKEN_SECRET_NAME)"
 
 New-WebhookImage: ## Build the Webhook image only
 	echo "PLATFORM=$(PLATFORM)"

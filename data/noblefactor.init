@@ -7,9 +7,14 @@
 
 set -o errexit -o nounset -o pipefail
 
+if [[ -f /usr/local/bin/webhook-executor && -z "${AZURE_CLIENT_SECRET:-}" ]]; then
+    echo "[noblefactor.init] [ERROR]: AZURE_CLIENT_SECRET not set for webhook-executor." >&2
+    exit 1
+fi
+
 if [[ -z ${1:-} ]]; then
-    echo "[noblefactor.init] Expected user name as first argument to entrypoint."
-    echo "Usage: $0 <user> [<path>...]"
+    echo "[noblefactor.init] [ERROR] Expected user name as first argument to entrypoint." >&2
+    echo "Usage: $0 <user> [<path>...]" >&2
     exit 1
 fi
 
@@ -29,7 +34,7 @@ if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
     if [[ -n "${PGID:-}" ]] && [[ "${PGID}" != "${current_gid}" ]]; then
         # Fail early if the target GID already exists and belongs to a different group
         if getent group "${PGID}" >/dev/null && [[ "$(getent group "${PGID}" | cut -d: -f1)" != "${user}" ]]; then
-            echo "Target GID ${PGID} already in use by group $(getent group "${PGID}" | cut -d: -f1)" >&2
+            echo "Target GID ${PGID} already in use by group $(getent group "${PGID}" | cut -d: -f1)"
             exit 1
         fi
         echo "Modifying webhook group: ${current_gid} -> ${PGID}"
@@ -42,13 +47,13 @@ if [[ -n "${PUID:-}" ]] || [[ -n "${PGID:-}" ]]; then
             echo "Target UID ${PUID} already in use by user $(getent passwd "${PUID}" | cut -d: -f1)" >&2
             exit 1
         fi
-        echo "Modifying webhook user: ${current_uid} -> ${PUID}"
+        echo "Modifying webhook user: ${current_uid} -> ${PUID}" >&2
         usermod --uid "${PUID}" "${user}"
     fi
 fi
 
 if (( $# > 0 )); then
-    echo "Updating volume ownership..."
+    echo "Updating volume ownership..." >&2
     declare -r target_uid="${PUID:-$current_uid}"
     declare -r target_gid="${PGID:-$current_gid}"
     chown --recursive --verbose "${target_uid}:${target_gid}" "$@"
@@ -56,7 +61,12 @@ else
     echo "No paths provided to chown, skipping ownership update."
 fi
 
-echo "$(hostname) user: $(id "${user}")"
+# Force S6 Overlay to communicate some late-breaking news to webhook
 
-# Chain to S6 overlay init
+mkdir -p /etc/services.d/webhook/env
+chmod -R o-r /etc/services.d/webhook/env
+printf '%s' "$AZURE_CLIENT_SECRET" > /etc/services.d/webhook/env/AZURE_CLIENT_SECRET
+printf '%s' "${WEBHOOK_CONFIG:-/usr/local/etc/webhook}" > /etc/services.d/webhook/env/WEBHOOK_CONFIG
+
+# Chain to S6 Overlay init
 exec /init

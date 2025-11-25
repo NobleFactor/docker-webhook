@@ -10,7 +10,7 @@ _arguments \
   '--algorithm[HMAC algorithm for JWT signing (default: HS512)]' \
   '--env-file[Load environment variables from a file]' \
   '--grant-access-to[Grant service principal access to secret by display name; script will fail if this cannot be resolved]' \
-  '--keyvault-url[Azure Key Vault URL]' \
+  '--keyvault-name[Azure Key Vault name (will be translated to https://<name>.vault.azure.net)]' \
   '--location[Webhook deployment location]' \
   '--secret-name[Key Vault secret name for shared secret]' \
   '--silent[Suppress informational output; only the JWT token is written to stdout]' \

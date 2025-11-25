@@ -159,21 +159,25 @@ GET /hooks/remote-mac?hostname=example.com&command=uptime
 
 All webhook-executor responses are returned as JSON objects with the following structure:
 
-- `exit_code` (integer, required): The exit code of the executed command (0 for success, non-zero for failure)
+- `status` (integer, required): The exit code of the executed command (0 for success, non-zero for failure)
 - `reason` (string, required): A description of the command execution result
-- `error` (string or null, optional): Error details if the command failed, or `null` if successful
 - `stdout` (string, optional): The standard output from the executed command
 - `stderr` (string, optional): The standard error output from the executed command
+- `error` (string or null, optional): Error details if the command failed, or `null` if successful
+- `authToken` (string, optional): When a presented JWT is refreshed the executor may return a refreshed token here; clients should use it for subsequent requests if present.
+- `correlationId` (string, required): A UUID v4 correlation identifier returned with every response; useful for tracing logs for this request.
 
 Example successful response:
 
 ```json
 {
-  "exit_code": 0,
+  "status": 0,
   "reason": "Command executed successfully",
-  "error": null,
   "stdout": " 14:32:15 up  5:23,  1 user,  load average: 0.00, 0.00, 0.00\n",
-  "stderr": ""
+  "stderr": "",
+  "error": null,
+  "authToken": null,
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -181,12 +185,16 @@ Example error response:
 
 ```json
 {
-  "exit_code": 1,
+  "status": 1,
   "reason": "Command failed",
-  "error": "uptime: command not found",
   "stdout": "",
-  "stderr": "bash: uptime: command not found\n"
+  "stderr": "bash: uptime: command not found\n",
+  "error": "uptime: command not found",
+  "authToken": null,
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000"
 }
+
+Note: webhook-executor writes diagnostic and runtime logs to the container logging stream (s6 / PID 1 stderr when available) and only emits the JSON response on stdout. This ensures diagnostic logs are captured by the container logging infrastructure and are not mixed into HTTP responses returned to callers.
 ```
 
 A test script `test/Test-WebhookExecutor` is provided for validating webhook-executor API responses.

@@ -8,8 +8,8 @@ BEGIN {
     keys["AZURE_TENANT_ID"] = azure_tenant_id
     keys["WEBHOOK_KEYVAULT_URL"] = keyvault_url
     keys["WEBHOOK_LOCATION"] = location
-    keys["WEBHOOK_SECRET_NAME"] = secret_name
-    keys["WEBHOOK_SP"] = grant_access_to
+    keys["WEBHOOK_TOKEN_SECRET_NAME"] = secret_name
+    keys["WEBHOOK_AZURE_CLIENT_NAME"] = grant_access_to
     keys["WEBHOOK_TOKEN_REFRESH_WINDOW"] = "5m"
     keys["WEBHOOK_TOKEN_TTL"] = "24h"
     
@@ -17,7 +17,7 @@ BEGIN {
     if (azure_client_id == "") {
         delete keys["AZURE_CLIENT_ID"]
         delete keys["AZURE_TENANT_ID"]
-        delete keys["WEBHOOK_SP"]
+        delete keys["WEBHOOK_AZURE_CLIENT_NAME"]
     }
 }
 

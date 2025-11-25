@@ -9,7 +9,7 @@ Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary wit
 .SH DESCRIPTION
 Test-WebhookExecutorStandalone is a black-box test script that validates the responses
 from the webhook-executor binary directly. It sources the hooks environment file for the specified location
-to obtain WEBHOOK_KEYVAULT_URL and WEBHOOK_SECRET_NAME, fetches Azure service principal credentials
+to obtain WEBHOOK_KEYVAULT_URL and WEBHOOK_TOKEN_SECRET_NAME, fetches Azure service principal credentials
 (client ID, tenant ID, and client secret) using the provided service principal name, fetches the JWT token
 from Azure Key Vault, provisions a test Docker container with SSH access, and runs the Go binary with command
 execution parameters and JWT authentication, verifying that the JSON responses conform to the expected schema.
@@ -30,7 +30,9 @@ For each command specified:
 .IP "-" 2
 Runs the webhook-executor binary with the constructed destination, --command, --authorization
 .IP "-" 2
-Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
+Validates the JSON response contains required fields: status, reason, stdout, stderr, error, authToken, correlationId
+.IP "Note:" 2
+When running inside a container the executor writes its diagnostic logs to the container logging stream (PID 1's stderr when available); those diagnostic log lines are not included in the JSON response body. The JSON payload produced by the executor contains the remote command's stdout and stderr values inside the `stdout` and `stderr` fields.
 .IP "-" 2
 Reports success or failure with detailed output
 

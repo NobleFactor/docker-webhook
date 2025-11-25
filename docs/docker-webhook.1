@@ -140,6 +140,10 @@ These are optional because the test suite can run without the integration test i
 .TP
 .B Test-WebhookExecutorStandalone
 Run `test/Test-WebhookExecutorStandalone` directly against the `webhook-executor` binary. Requires `LOCATION`; reads Key Vault configuration from `webhook.config/$(LOCATION)/hooks.env`, fetches the client secret from Key Vault using the configured `WEBHOOK_AZURE_CLIENT_NAME`/`WEBHOOK_TOKEN_SECRET_NAME`, and accepts test commands via `WEBHOOK_EXECUTOR_COMMAND` (semicolon-separated).
+
+.PP
+.B Note
+When the executor runs inside a container, it will attempt to send diagnostic logs to the container logging stream (PID 1's stderr when available). Those diagnostic logs go to the container logger and are not mixed into the JSON response returned by the executor; the HTTP-facing payload contains only the executor stdout JSON (which itself contains the remote command stdout/stderr fields).
 .PP
 Variables Referenced in Test-WebhookExecutorStandalone Target
 .PP

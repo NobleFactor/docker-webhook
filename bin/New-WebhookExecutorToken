@@ -8,13 +8,13 @@
 # New-WebhookExecutorToken - Generate a JWT token with a random secret, save both to Azure Key Vault, and output the token to stdout
 # shellcheck source=bin/Declare-BashScript
 
-source "$(dirname "$0")/Declare-BashScript" "$0" "help,env-file:,algorithm:,grant-access-to:,keyvault-url:,location:,secret-name:,silent,token-name:" "h" "$@"
+source "$(dirname "$0")/Declare-BashScript" "$0" "help,env-file:,algorithm:,grant-access-to:,keyvault-name:,location:,secret-name:,silent,token-name:" "h" "$@"
 
 ###########
 # Arguments
 ###########
 
-declare -r synopsis="New-WebhookExecutorToken [--env-file ENV_FILE] [--algorithm ALGORITHM] [--keyvault-url KEYVAULT_URL] [--location LOCATION] [--secret-name SECRET_NAME] [--token-name TOKEN_NAME] --grant-access-to DISPLAY_NAME [--silent] [--help]"
+declare -r synopsis="New-WebhookExecutorToken [--env-file ENV_FILE] [--algorithm ALGORITHM] [--keyvault-name KEYVAULT_NAME] [--location LOCATION] [--secret-name SECRET_NAME] [--token-name TOKEN_NAME] --grant-access-to DISPLAY_NAME [--silent] [--help]"
 eval set -- "$script_arguments"
 
 while :; do
@@ -27,27 +27,27 @@ while :; do
         shift 2
         ;;
     --algorithm)
-        declare -r algorithm="$2"
-        shift 2
-        ;;
-    --keyvault-url)
-        declare -r keyvault_url="$2"
-        shift 2
-        ;;
-    --location)
-        declare -r location="$2"
+        algorithm="$2"
         shift 2
         ;;
     --grant-access-to)
-        declare -r grant_access_to="$2"
+        grant_access_to="$2"
+        shift 2
+        ;;
+    --keyvault-name)
+        keyvault_name="$2"
+        shift 2
+        ;;
+    --location)
+        location="$2"
         shift 2
         ;;
     --secret-name)
-        declare -r secret_name="$2"
+        secret_name="$2"
         shift 2
         ;;
     --silent)
-        declare -r silent=1
+        silent=1
         shift 1
         ;;
     --)
@@ -65,25 +65,29 @@ if [[ -n ${silent:-} ]]; then
 else
     unset SILENT
 fi
+declare -r silent
 
 # --env-file
 
 if [[ -n ${env_file:-} ]]; then
     [[ -f ${env_file} ]] || error 2 "Environment file not found: ${env_file}"
-    Set-Environment --whitelist "AZURE_CLIENT_ID AZURE_TENANT_ID WEBHOOK_CONFIG WEBHOOK_KEYVAULT_URL WEBHOOK_LOCATION WEBHOOK_SECRET_NAME WEBHOOK_SP WEBHOOK_TOKEN_REFRESH_WINDOW WEBHOOK_TOKEN_TTL" "$env_file"
+    Set-Environment --whitelist "AZURE_CLIENT_ID AZURE_TENANT_ID WEBHOOK_CONFIG WEBHOOK_KEYVAULT_URL WEBHOOK_LOCATION WEBHOOK_TOKEN_SECRET_NAME WEBHOOK_AZURE_CLIENT_NAME WEBHOOK_TOKEN_REFRESH_WINDOW WEBHOOK_TOKEN_TTL" "$env_file"
 fi
+declare -r env_file
 
 # --algorithm
 
 if [[ ! -v algorithm ]]; then
-    declare -r algorithm=HS512
+    algorithm=HS512
 fi
 [[ -n ${algorithm:-} ]] || error 2 "A non-blank value for algorithm is required."
+
+declare -r algorithm
 
 # --grant-access-to
 
 if [[ ! -v grant_access_to ]]; then
-    declare -r grant_access_to="${WEBHOOK_SP:-}"
+    grant_access_to="${WEBHOOK_AZURE_CLIENT_NAME:-}"
 fi
 
 if [[ -n ${grant_access_to:-} ]]; then
@@ -97,6 +101,17 @@ if [[ -n ${grant_access_to:-} ]]; then
     fi
 fi
 
+declare -r grant_access_to
+
+# --keyvault-name
+
+if [[ ! -v keyvault_name ]]; then
+    keyvault_name="${WEBHOOK_KEYVAULT_NAME:-}"
+fi
+[[ -n ${keyvault_name} ]] || error 2 "A value for keyvault-name is required."
+
+declare -r keyvault_name
+
 # --location
 
 if [[ ! -v location ]]; then
@@ -104,17 +119,12 @@ if [[ ! -v location ]]; then
 fi
 [[ -n ${location} ]] || error 2 "A non-blank value for location is required."
 
-# --keyvault-url
-
-if [[ ! -v keyvault_url ]]; then
-    declare -r keyvault_url="${WEBHOOK_KEYVAULT_URL:-}"
-fi
-[[ -n ${keyvault_url:-} ]] || error 2 "A non-blank value for keyvault-url is required."
+declare -r location
 
 # --secret-name
 
 if [[ ! -v secret_name ]]; then
-    declare -r secret_name="${WEBHOOK_SECRET_NAME:-webhook-executor-${location}-secret}"
+    declare -r secret_name="${WEBHOOK_TOKEN_SECRET_NAME:-webhook-executor-${location}-secret}"
 fi
 [[ -n ${secret_name:-} ]] || error 2 "A non-blank value for secret-name is required."
 
@@ -129,8 +139,6 @@ fi
 
 note "Generating auth token..."
 
-declare -r vault_name=$(echo "$keyvault_url" | sed 's|https://||' | sed 's|\.vault\.azure\.net.*||')
-
 declare -r expires=$(python3 -c "import time; print(int(time.time()) + 24*3600)")
 declare -r payload="{\"iss\":\"webhook-executor\",\"sub\":\"${location}\",\"exp\":$expires}"
 declare -r secret=$(openssl rand -hex 128)
@@ -138,15 +146,15 @@ declare -r secret=$(openssl rand -hex 128)
 declare -r auth_token="$("${script_root}/New-JsonWebToken" --secret "$secret" --algorithm "$algorithm" --payload "$payload")"
 
 if [[ -n ${SILENT:-} ]]; then
-    az keyvault secret set --vault-name "$vault_name" --name "$secret_name" --value "$secret" >/dev/null 2>&1
+    az keyvault secret set --vault-name "$keyvault_name" --name "$secret_name" --value "$secret" >/dev/null 2>&1
 else
-    az keyvault secret set --vault-name "$vault_name" --name "$secret_name" --value "$secret" >&2
+    az keyvault secret set --vault-name "$keyvault_name" --name "$secret_name" --value "$secret" >&2
 fi
 
 if [[ -n ${azure_client_id:-} ]]; then
 
-    if [[ $(az keyvault show --name "$vault_name" --query "properties.enableRbacAuthorization" -o tsv) == true ]]; then
-        declare -r scope="$(az keyvault show --name "$vault_name" --query "id" -o tsv)"
+    if [[ $(az keyvault show --name "$keyvault_name" --query "properties.enableRbacAuthorization" -o tsv) == true ]]; then
+        declare -r scope="$(az keyvault show --name "$keyvault_name" --query "id" -o tsv)"
         if [[ -n ${SILENT:-} ]]; then
             az role assignment create --assignee "$azure_client_id" --role "Key Vault Secrets User" --scope "${scope}" >/dev/null 2>&1
         else
@@ -154,9 +162,9 @@ if [[ -n ${azure_client_id:-} ]]; then
         fi
     else
         if [[ -n ${SILENT:-} ]]; then
-            az keyvault set-policy --name "$vault_name" --spn "$azure_client_id" --secret-permissions get >/dev/null 2>&1
+            az keyvault set-policy --name "$keyvault_name" --spn "$azure_client_id" --secret-permissions get >/dev/null 2>&1
         else
-            az keyvault set-policy --name "$vault_name" --spn "$azure_client_id" --secret-permissions get >&2
+            az keyvault set-policy --name "$keyvault_name" --spn "$azure_client_id" --secret-permissions get >&2
         fi
     fi
 
@@ -169,16 +177,18 @@ declare -r hooks_env="webhook.config/$location/hooks.env"
 if [[ ! -f ${hooks_env} ]]; then
     mkdir -p "webhook.config/$location"
     touch "${hooks_env}"
+    chmod go-rw "${hooks_env}"
 fi
 
+declare -r keyvault_url="https://${keyvault_name}.vault.azure.net"
+
 "${script_root}/Update-WebhookExecutorEnv.awk" \
-    -i inplace \
     -v azure_client_id="${azure_client_id:-}" \
     -v azure_tenant_id="${azure_tenant_id:-}" \
     -v grant_access_to="${grant_access_to:-}" \
     -v keyvault_url="$keyvault_url" \
     -v secret_name="$secret_name" \
     -v location="$location" \
-    "$hooks_env"
+    "${hooks_env}" | sponge "${hooks_env}"
 
 echo ${auth_token}

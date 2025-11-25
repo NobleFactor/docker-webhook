@@ -5,7 +5,7 @@
 Test-WebhookExecutorIntegration \- black-box API test for webhook-executor responses via webhook service
 .SH SYNOPSIS
 .B Test-WebhookExecutorIntegration
-\fI--container\fR \fICONTAINER\fR \fI--destination\fR \fIDESTINATION\fR \fI--location\fR \fILOCATION\fR \fI--command\fR \fICOMMANDS\fR [\fI--help\fR]
+\fI--container\fR \fICONTAINER\fR \fI--destination\fR \fIDESTINATION\fR \fI--location\fR \fILOCATION\fR \fI--trigger\fR \fITRIGGER\fR \fI--command\fR \fICOMMANDS\fR [\fI--help\fR]
 .SH DESCRIPTION
 Test-WebhookExecutorIntegration is a black-box test script that validates the API responses
 from webhook-executor hooks in a running webhook deployment via the webhook service using hooks.json routing. It sources Key Vault-related environment variables from the per-location hooks environment and will obtain a JWT via the bundled bin/New-WebhookExecutorToken when needed. The test performs HTTP GET requests to the webhook endpoint inside the container to exercise the hooks and validates the JSON responses.
@@ -17,7 +17,9 @@ and reports pass/fail counts for each tested command.
 .IP "-" 2
 Sends a GET request to the container webhook endpoint (webhook_url) with query parameters including the destination and command.
 .IP "-" 2
-Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
+Validates the JSON response contains required fields: status, reason, stdout, stderr, error, authToken, correlationId
+.IP "Note:" 2
+Diagnostic logs emitted by `webhook-executor` are written to the container logging stream (PID 1's stderr when available) and are not mixed into the HTTP response body. The HTTP response contains only the executor's stdout JSON (the `stdout`/`stderr` fields inside that JSON represent the remote SSH server's output).
 .IP "-" 2
 Reports success or failure with detailed output
 
@@ -41,6 +43,14 @@ Required. The SSH destination used by the webhook route (e.g., user@host or ssh:
 .TP
 .B --location LOCATION
 Required. The location identifier used to discover the volume-based hooks environment (volumes/LOCATION/hooks.env).
+.TP
+.B --trigger TRIGGER
+Required. An identifier included in the webhook request path as the hook id (the request is made to /hooks/<trigger>). Integration tests will fail with a 404 if this is omitted.
+
+.IP "Note:" 2
+When invoking the integration test via the repository Makefile, set the hook id using the `TRIGGER` make variable, for example:
+.IP
+make Test-WebhookExecutorIntegration TRIGGER=my-hook-id LOCATION=us-wa DESTINATION=ssh://user@target-host:2222 CONTAINER_HOSTNAME=webhook-us-wa-dev WEBHOOK_EXECUTOR_COMMAND='uptime'
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
 failures are reported but do not immediately terminate the script; all specified commands

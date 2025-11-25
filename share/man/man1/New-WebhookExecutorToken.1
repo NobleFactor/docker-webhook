@@ -36,7 +36,7 @@ Load environment variables from the specified file. Recognized variables include
 The HMAC algorithm to use for JWT signing. Supported values are \fBHS1\fR
 (SHA-1), \fBHS256\fR (SHA-256), or \fBHS512\fR (SHA-512).
 .TP
-.BR \-\-keyvault-url " \fIKEYVAULT_URL\fR (required)"
+BR \-\-keyvault-name " \fIKEYVAULT_NAME\fR (required)"
 Grant the specified Azure service principal (by display name) get permission on the
 https://myvault.vault.azure.net).
 .TP
@@ -63,12 +63,12 @@ Display usage information and exit.
 .SH EXAMPLES
 Generate JWT and save to Key Vault for location 'us-wa':
 .nf
-New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --grant-access-to webhook-executor-sp
+New-WebhookExecutorToken --keyvault-name myvault --location us-wa --grant-access-to webhook-executor-sp
 .fi
 .TP
 Use custom names and grant access to a service principal:
 .nf
-New-WebhookExecutorToken --keyvault-url https://myvault.vault.azure.net --location us-wa --secret-name my-secret --token-name my-token --grant-access-to webhook-executor-sp
+New-WebhookExecutorToken --keyvault-name myvault --location us-wa --secret-name my-secret --token-name my-token --grant-access-to webhook-executor-sp
 .fi
 .TP
 Load configuration from environment file:

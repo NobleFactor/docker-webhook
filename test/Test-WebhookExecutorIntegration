@@ -8,7 +8,7 @@
 # Test-WebhookExecutorIntegration - Test webhook hook responses inside the container via webhook service
 # shellcheck source=../bin/Declare-BashScript
 
-source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,command:,container:,destination:,location:" "h" "$@"
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,command:,container:,destination:,location:,trigger:" "h" "$@"
 
 ###########
 # Variables
@@ -22,29 +22,29 @@ declare -r curl_timeout=10
 
 function test_command {
 
-    local cmd="$1"
+    local command="$1"
     local correlationId="$(uuidgen)"
 
-    note "==> Testing command: $cmd"
+    note "==> Testing command: ${trigger} ${command}"
 
     local response=$(curl --silent --insecure --max-time "$curl_timeout" \
-        -H "Authorization: Bearer ${auth_token}" \
-        -G "${webhook_url}" \
+        --get "${webhook_url}${trigger}" \
         --data-urlencode "destination=${destination}" \
-        --data-urlencode "command=${cmd}" \
-        --data-urlencode "correlationId=${correlationId}")
+        --data-urlencode "command=${command}" \
+        --data-urlencode "correlationId=${correlationId}" \
+        --header "Authorization: Bearer ${auth_token}")
 
     if [[ -z "$response" ]]; then
-        error 0 "FAIL: No response from ${webhook_url} for $cmd."
+        error 0 "FAIL: No response from ${webhook_url} for ${trigger} ${command}."
         return 1
     fi
 
-    if ! echo "$response" | jq -e '.exit_code and .reason and (.error == null or type == "string") and has("stdout") and has("stderr")' >/dev/null 2>&1; then
-        error 0 "FAIL: Invalid response from ${webhook_url} for $cmd: $response"
+    if ! echo "$response" | jq -e '.status and .reason and (.error == null or type == "string") and has("stdout") and has("stderr") and has("authToken") and has("correlationId")' >/dev/null 2>&1; then
+        error 0 "FAIL: Invalid response from ${webhook_url} for ${trigger} $command: $response"
         return 1
     fi
 
-    success "PASS: $cmd returned valid JSON: $response"
+    success "PASS: ${trigger} ${command} returned valid JSON: $response"
     return 0
 }
 
@@ -71,7 +71,7 @@ function wait_for_container_and_user {
 # Arguments
 ###########
 
-declare -r synopsis="${script_name} --help | --location LOCATION --container CONTAINER --destination DESTINATION --command CMD [--command CMD ...]"
+declare -r synopsis="${script_name} --help | --location LOCATION --container CONTAINER --destination DESTINATION --trigger TRIGGER --command CMD [--command CMD ...]"
 eval set -- "$script_arguments"
 
 while [[ $# -gt 0 ]]; do
@@ -93,6 +93,10 @@ while [[ $# -gt 0 ]]; do
         ;;
     --location)
         location="$2"
+        shift 2
+        ;;
+    --trigger)
+        trigger="$2"
         shift 2
         ;;
     --)
@@ -137,37 +141,47 @@ declare -r destination
 [[ -n ${location:-} ]] || error 2 "A value for location is required."
 declare -r location
 
+# --trigger
+
+[[ -n ${trigger:-} ]] || error 2 "A value for trigger is required."
+declare -r trigger
+
 ###########
 # Main
 ###########
 
-# Set webhook config directory location
-
-cd "${script_root}/.." && declare -r webhook_config=$(realpath "volumes/$location")
-[[ -d ${webhook_config:-} ]] || error 1 "Webhook configuration directory for ${location} not found: ${webhook_config}"
-
-# Source hooks environment
-
-[[ -f ${webhook_config}/hooks.env ]] || error 1 "Webhook executor enviroment for ${location} not found: ${webhook_config}/hooks.env"
-Set-Environment --whitelist "AZURE_CLIENT_ID AZURE_TENANT_ID WEBHOOK_CONFIG WEBHOOK_KEYVAULT_URL WEBHOOK_LOCATION WEBHOOK_SECRET_NAME WEBHOOK_SP WEBHOOK_TOKEN_REFRESH_WINDOW WEBHOOK_TOKEN_TTL" "${webhook_config}/hooks.env"
-
 # Ensure container is running
 
-if [[ -z $(sudo docker ps -q -f name=${container}) ]]; then
-    sudo docker container start ${container}
-    wait_for_container_and_user ${container} webhook 60
+if [[ -z $(sudo docker ps -q -f name="${container}") ]]; then
+    sudo docker container start "${container}"
+    wait_for_container_and_user "${container}" webhook 60
 fi
 
 # Extract webhook URL using container's IP and internal port
 
-declare -r container_ip=$(sudo docker inspect ${container} --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+declare -r container_ip="$(sudo docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${container}")"
 
-if [[ -z "$container_ip" ]]; then
+if [[ -z "${container_ip}" ]]; then
     error 1 "Unable to determine container IP address for ${container}"
 fi
 
-declare -r webhook_url="https://${container_ip}:9000/hooks/"
-declare -r auth_token="$(bin/New-WebhookExecutorToken --silent)"
+declare -r container_port="$(sudo docker inspect --format '{{with index .NetworkSettings.Ports "9000/tcp"}}{{(index . 0).HostPort}}{{end}}' "${container}")"
+
+if [[ -z "${container_port}" ]]; then
+    error 1 "Unable to determine host-mapped port for 9000/tcp on ${container}"
+fi
+
+declare -r webhook_url="https://localhost:${container_port}/hooks/"
+
+# Get a fresh authorization token
+
+declare -r webhook_env="$(realpath -q "${script_root}/../volumes/${location}/hooks.env")"
+
+if [[ ! -f "${webhook_env}" ]]; then
+    error 1 "Webhook environment file not found: ${webhook_env}"
+fi
+
+declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${webhook_env}")"
 
 note "Starting webhook deployment tests for destination: $destination"
 declare -r start_time=$(date +%s)
