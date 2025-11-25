@@ -40,7 +40,13 @@ endif
 
 override CONTAINER_HOSTNAME := webhook-$(LOCATION)$(hostname_suffix)
 
-### WEBHOOK_EXECUTOR_* Variables
+### Webhhok Container Variables
+
+WEBHOOK_VERSION ?= 2.8.2
+
+WEBHOOK_PGID ?=
+WEBHOOK_PORT ?= 9000
+WEBHOOK_PUID ?= $(shell id --user)
 
 WEBHOOK_EXECUTOR_EXCLUDE         ?= false
 WEBHOOK_KEYVAULT_NAME            ?=
@@ -49,12 +55,6 @@ WEBHOOK_TOKEN_ALGORITHM          ?= HS512
 WEBHOOK_TOKEN_PAYLOAD            ?= {"iss":"webhook-executor","sub":"$(LOCATION)","exp":$(shell date -d "+24 hours" +%s)}
 WEBHOOK_AZURE_CLIENT_NAME        ?= webhook-executor-sp
 WEBHOOK_AZURE_CLIENT_SECRET_NAME ?= ${WEBHOOK_AZURE_CLIENT_NAME}-password
-
-### Azure Authentication Variables
-
-AZURE_CLIENT_SECRET ?=
-AZURE_CLIENT_ID     ?=
-AZURE_TENANT_ID     ?=
 
 ### IP_ADDRESS Optional; if absent docker compose will decide based on the IP_RANGE
 
@@ -67,26 +67,6 @@ IP_RANGE ?=
 ### S6_OVERLAY_VERSION
 
 S6_OVERLAY_VERSION ?= 3.2.1.0
-
-### WEBHOOK_PGID
-
-WEBHOOK_PGID ?=
-
-### WEBHOOK_PORT
-
-WEBHOOK_PORT ?= 9000
-
-### WEBHOOK_PUID
-
-WEBHOOK_PUID ?= $(shell id --user)
-
-### WEBHOOK_URL
-
-WEBHOOK_URL ?= https://localhost:$(WEBHOOK_PORT)/hooks/
-
-### WEBHOOK_VERSION
-
-WEBHOOK_VERSION ?= 2.8.2
 
 ## VARIABLES
 
@@ -264,30 +244,46 @@ test: ## Runs repository test scripts
 	$(if $(TRIGGER),, $(error TRIGGER not set))
 	$(if $(COMMAND),, $(error COMMAND not set))
 
+	declare -a failed_test_names=()
 	passed_tests=0
 	failed_tests=0
 
 	if $(MAKE) Test-ShellFormatting; then
 		((passed_tests++)) || :
 	else
+		failed_test_names+=("Test-ShellFormatting")
 		((failed_tests++)) || :
 	fi
 
 	if $(MAKE) Test-ShellScript; then 
 		((passed_tests++)) || :
 	else 
+		failed_test_names+=("Test-ShellScript")
 		((failed_tests++)) || :
 	fi
+
+	pushd src
+
+	if go test ./... ; then
+		((passed_tests++)) || :
+	else
+		failed_test_names+=("go tests")
+		((failed_tests++)) || :
+	fi
+
+	popd
 
 	if $(MAKE) Test-WebhookDeploymentPreparation; then
 		((passed_tests++)) || :
 	else
+		failed_test_names+=("Test-WebhookDeploymentPreparation")
 		((failed_tests++)) || :
 	fi
 
 	if $(MAKE) Test-WebhookExecutorStandalone; then
 		((passed_tests++)) || :
 	else
+		failed_test_names+=("Test-WebhookExecutorStandalone")
 		((failed_tests++)) || :
 	fi
 
@@ -295,11 +291,13 @@ test: ## Runs repository test scripts
 		if $(MAKE) Test-WebhookReadiness; then
 			((passed_tests++)) || :
 		else
+			failed_test_names+=("Test-WebhookReadiness")
 			((failed_tests++)) || :
 		fi
 		if $(MAKE) Test-WebhookExecutorIntegration; then
 			((passed_tests++)) || :
 		else
+			failed_test_names+=("Test-WebhookExecutorIntegration")
 			((failed_tests++)) || :
 		fi
 	else
@@ -307,6 +305,10 @@ test: ## Runs repository test scripts
 	fi
 
 	echo "==> Test Summary: [$${passed_tests} Passed, $${failed_tests} Failed]"
+	if ((failed_tests)); then
+		echo "Failed tests:"
+		printf "    %s\n" "${failed_test_names[@]}"
+	fi
 
 Test-ShellFormatting: ## Check shell formatting (non-destructive)
 	echo "==> Running Test-ShellFormatting"

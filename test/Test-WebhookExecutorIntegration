@@ -145,3 +145,7 @@ done < <(printf '%s' "$commands" | awk 'BEGIN { RS = "[[:space:]]*;[[:space:]]*"
 declare -r elapsed=$(($(date +%s) - start_time))
 
 note "==> Test Complete: Test-WebhookExecutorIntegration - Status: [$passed_tests Passed, $failed_tests Failed] Duration: ${elapsed}s"
+
+if ((failed_tests > 0)); then
+    exit 1
+fi

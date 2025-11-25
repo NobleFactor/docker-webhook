@@ -84,8 +84,8 @@ MacPorts install instructions: https://www.macports.org/install.php
     fi
     ;;
 Linux)
-    sudo apt update
-    sudo apt install --yes make build-essential codespell curl gawk grepcidr ipcalc jq moreutils shellcheck shfmt
+    sudo apt-get update
+    sudo apt-get install --yes make build-essential codespell curl gawk grepcidr ipcalc jq moreutils shellcheck shfmt
     sudo "${script_root}/Install-Docker"
     ;;
 esac
