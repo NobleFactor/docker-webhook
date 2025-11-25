@@ -4,8 +4,8 @@ FROM debian:trixie-slim
 # Install OpenSSH server
 RUN apt-get update && apt-get install -y openssh-server && rm -rf /var/lib/apt/lists/*
 
-# Create the web-executor-destination user
-RUN useradd -m -s /bin/bash web-executor-destination
+# Create the webhook-executor-destination user
+RUN useradd -m -s /bin/bash webhook-executor-destination
 
 # Configure SSH
 RUN <<EOF
@@ -19,7 +19,7 @@ EOF
 COPY data/webhook-executor-destination/test-webhook-destination /usr/local/bin/test-webhook-destination
 RUN chmod +x /usr/local/bin/test-webhook-destination
 
-# Entrypoint script to fetch and authorize the key
+# Copy entrypoint script to fetch and authorize the ssh key
 COPY data/webhook-executor-destination/entrypoint /entrypoint
 RUN chmod +x /entrypoint
 

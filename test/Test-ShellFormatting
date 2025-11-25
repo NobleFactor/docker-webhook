@@ -54,5 +54,4 @@ if ! shfmt -d -i 4 "${files[@]}"; then
     error 1 "shfmt detected formatting issues. Run 'make format' locally."
 fi
 
-success "Formatting check passed on ${#files[@]} files:"
-printf '  %s\n' "${files[@]}"
+note "==> Test Complete: Test-ShellFormatting - Formatting checks passed on ${#files[@]} files"

@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+
+########################################################################################################################
+# SPDX-FileCopyrightText: 2016-2025 Noble Factor
+# SPDX-License-Identifier: MIT
+########################################################################################################################
+
+# Start-TestContainer - create / build / start the test SSH destination container used by tests
+# shellcheck source=bin/Declare-BashScript
+
+source "$(dirname "$0")/../bin/Declare-BashScript" "$0" "help,location:,silent" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="${script_name} [--location LOCATION] [--silent]"
+eval set -- "$script_arguments"
+unset location silent
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+    -h | --help)
+        usage "$synopsis"
+        ;;
+    --location)
+        location="$2"
+        shift 2
+        ;;
+    --silent)
+        silent=true
+        shift 1
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        error 2 "Unrecognized option: $1"
+        ;;
+    esac
+done
+
+[[ -n ${location:-} ]] || error 2 "A value for location is required."
+declare -r location
+
+if [[ -n ${silent:-} ]]; then
+    export SILENT=true
+else
+    unset SILENT
+fi
+
+###########
+# Main
+###########
+
+cd ${script_root}/..
+
+declare -r webhook_config="$(realpath -q "webhook.config/${location}")"
+[[ -d ${webhook_config} ]] || error 1 "Webhook config directory for ${location} not found: ${webhook_config}"
+
+declare -r authorized_key_filename="$webhook_config/ssh/id_rsa.pub"
+[[ -f ${authorized_key_filename} ]] || error 1 "SSH key file for ${location} not found: ${authorized_key_filename}"
+
+declare -r authorized_key="$(cat "$webhook_config/ssh/id_rsa.pub")"
+
+declare -r destination=webhook-executor-destination
+[[ -f Dockerfile.${destination} ]] || error 1 "Missing Dockerfile.${destination} required to build."
+
+if [[ -n $(sudo docker ps -a --filter name="${destination}" -q || :) ]]; then
+    note "Removing container ${destination}"
+    sudo docker container rm --force "${destination}" >/dev/null
+fi
+
+if [[ -z $(sudo docker images -q "noblefactor/${destination}" 2>/dev/null || :) ]]; then
+    note "Building image "noblefactor/${destination}" from Dockerfile.${destination}"
+    sudo docker build -t "noblefactor/${destination}" -f "Dockerfile.${destination}" .
+fi
+
+note "Running container ${destination}"
+sudo docker run -d --name "${destination}" --publish 22 --expose 22 "noblefactor/${destination}" "${authorized_key}" >/dev/null
+
+note "Waiting for container ${destination} to start"
+
+declare -r end_time=$((SECONDS + 60))
+ip_address=""
+
+while ((SECONDS < end_time)); do
+    ip_address=$(sudo docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${destination}" 2>/dev/null || :)
+    if [[ -n "${ip_address}" ]]; then
+        break
+    fi
+    sleep 1
+done
+
+if [[ -z "${ip_address:-}" ]]; then
+    error 1 "Container ${destination} started but no IP address detected within ${timeout}s"
+fi
+
+port="$(sudo docker inspect --format='{{with index .Config.ExposedPorts}}{{range $k,$v := .}}{{$k}}{{end}}{{end}}' "${destination}" 2>/dev/null || :)"
+
+if [[ -z "${port:-}" ]]; then
+    port=22 # fallback to common ssh port
+else
+    port=$(echo "${port}" | awk -F'/' '{print $1}') # extract numeric port (like "22/tcp") -> 22
+fi
+
+declare -r port
+declare -r destination_address="ssh://${destination}@${ip_address}:${port}"
+
+success "Started ${destination} which is available at: ${destination_address}"
+echo "${destination_address}"

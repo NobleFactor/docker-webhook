@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2025 Noble Factor
+// SPDX-License-Identifier: MIT
 package azure
 
 import (
@@ -11,7 +13,7 @@ import (
 // FetchSecretFromKeyVault retrieves the secret value from Azure Key Vault
 func FetchSecretFromKeyVault(vaultUrl, secretName string) ([]byte, error) {
 	if vaultUrl == "" || secretName == "" {
-		return nil, fmt.Errorf("WEBHOOK_KEYVAULT_URL or WEBHOOK_SECRET_NAME not set")
+		return nil, fmt.Errorf("WEBHOOK_KEYVAULT_URL or WEBHOOK_TOKEN_SECRET_NAME not set")
 	}
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)

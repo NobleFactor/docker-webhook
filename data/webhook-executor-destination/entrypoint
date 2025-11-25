@@ -1,18 +1,22 @@
 #!/bin/bash
-set -e
 
-KEY_PATH="/usr/local/etc/webhook/ssh/id_rsa.pub"
+set -o errexit -o nounset -o pipefail -o xtrace
 
-if [ ! -f "$KEY_PATH" ]; then
-    echo "Error: Public key not found at $KEY_PATH"
-    exit 1
+declare -r authorized_key="${1:-}"
+
+if [[ -z ${authorized_key:-} ]]; then
+    echo "Error: A non-blank value for authorized_key is required." >&2
+    exit 2
 fi
+
+declare -r user=webhook-executor-destination
+declare -r home=$(getent passwd ${user} | cut -d: -f6)
 
 # Authorize the key
 
-cp "$KEY_PATH" /home/web-executor-destination/.ssh/authorized_keys
-chown -R web-executor-destination:web-executor-destination /home/web-executor-destination/.ssh
-chmod 600 /home/web-executor-destination/.ssh/authorized_keys
-chmod 700 /home/web-executor-destination/.ssh
+mkdir -p "${home}/.ssh" && echo "${authorized_key:-}" > ${home}/.ssh/authorized_keys
+chown -R ${user}:${user} "${home}/.ssh"
+chmod 600 "${home}/.ssh/authorized_keys"
+chmod 700 "${home}/.ssh"
 
 exec /usr/sbin/sshd -D

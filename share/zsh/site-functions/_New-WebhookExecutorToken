@@ -5,11 +5,13 @@
 
 #compdef New-WebhookExecutorToken
 _arguments \
-  '--env-file[Load environment variables from a file]' \
+  '-h[Show usage information and exit]' \
+  '--help[Show usage information and exit]' \
   '--algorithm[HMAC algorithm for JWT signing (default: HS512)]' \
-  '--keyvault-url[Azure Key Vault URL]' \
+  '--env-file[Load environment variables from a file]' \
+  '--grant-access-to[Grant service principal access to secret by display name; script will fail if this cannot be resolved]' \
+  '--keyvault-name[Azure Key Vault name (will be translated to https://<name>.vault.azure.net)]' \
   '--location[Webhook deployment location]' \
   '--secret-name[Key Vault secret name for shared secret]' \
-  '--token-name[Key Vault secret name for JWT]' \
-  '--permit-spn[Grant service principal access to secret]' \
-  '--help[Show usage information and exit]'
+  '--silent[Suppress informational output; only the JWT token is written to stdout]' \
+  '--token-name[Key Vault secret name for JWT]'

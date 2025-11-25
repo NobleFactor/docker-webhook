@@ -54,7 +54,7 @@ declare -r image="${default_image}"
 # check required tools
 command -v docker >/dev/null 2>&1 || error 2 "docker is not installed or not in PATH"
 
-echo "[sanity] Image: $image"
+note "Image: $image"
 
 # Ensure artifacts directory exists for captured logs
 mkdir -p "$(dirname "$0")/artifacts" >/dev/null 2>&1 || true
@@ -72,7 +72,7 @@ if [[ -n ${container_spec:-} ]]; then
         error 3 "could not find a running container with name or ID '$container_spec'"
     fi
     container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
-    echo "[sanity] Using specified container $container_name (id: $container_id)"
+    note "Using specified container $container_name (id: $container_id)"
 else
     # Discover running containers started from the image
     container_id=$(docker ps --filter "ancestor=$image" --format '{{.ID}}' | head -n 1)
@@ -82,10 +82,10 @@ else
     fi
 
     container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
-    echo "[sanity] Using container $container_name (id: $container_id) started from $image"
+    note "Using container $container_name (id: $container_id) started from $image"
 fi
 
-echo "[sanity] Waiting up to ${wait_seconds}s (polling) for service to initialize..."
+note "Waiting up to ${wait_seconds}s (polling) for service to initialize..."
 end_time=$((SECONDS + wait_seconds))
 logs=''
 
@@ -95,23 +95,25 @@ while ((SECONDS <= end_time)); do
 ' "$logs" >"$logfile"
     # Quick checks for success markers
     if printf '%s' "$logs" | grep -iq "serving hooks"; then
-        echo "[sanity] SUCCESS: webhook started and serving hooks detected in logs."
-        echo "[sanity] Full logs saved to: $logfile"
+        success "webhook started and serving hooks detected in logs."
+        note "Full logs saved to: $logfile"
+        note "==> Test Complete: Test-WebhookReadiness - readiness confirmed"
         exit 0
     fi
     if printf '%s' "$logs" | grep -iq "version [0-9]\+\.[0-9]"; then
-        echo "[sanity] INFO: webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
+        error 0 "webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
+        note "==> Test Complete: Test-WebhookReadiness - binary started, but no serving hooks line matched"
         exit 0
     fi
     sleep 1
 done
 
 echo
-echo "[sanity] Container status:"
+note "Container status:"
 docker ps --filter "name=$container_name" --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}' || true
 
 echo
-echo "[sanity] Capturing final logs (last 2000 lines) to $logfile:"
+note "Capturing final logs (last 2000 lines) to $logfile:"
 logs=$(docker logs --tail 2000 "$container_name" 2>&1 || true)
 printf '%s
 ' "$logs" >"$logfile"
@@ -119,7 +121,7 @@ printf '%s
 ' "$logs"
 
 echo
-echo "[sanity] Inspecting runtime files inside the container (best-effort):"
+note "Inspecting runtime files inside the container (best-effort):"
 docker exec "$container_name" bash -c '
     set -o errexit -o nounset -o pipefail
     printf "== /init ==\n";
@@ -131,6 +133,6 @@ docker exec "$container_name" bash -c '
 ' || true
 
 echo
-echo "[sanity] WARNING: could not find clear 'serving hooks' or version markers in logs. Full logs written to: $logfile"
-echo "[sanity] Leaving artifacts in place for inspection (test failed)."
-exit 1
+note "WARNING: could not find clear 'serving hooks' or version markers in logs. Full logs written to: $logfile"
+note "Leaving artifacts in place for inspection (test failed)."
+error 1 "==> Test Complete: Test-WebhookReadiness - readiness markers not found"

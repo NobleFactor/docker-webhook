@@ -25,7 +25,7 @@ For secure deployments with JWT-based HMAC authentication using Azure Key Vault:
 
 1. Create an Azure service principal with Reader role: `az ad sp create-for-rbac --name "webhook-executor-sp" --role reader --scopes /subscriptions/<subscription-id>`
 2. Set up authentication credentials for Key Vault access: `make New-WebhookAzureAuth LOCATION=<location>`
-3. Generate and store JWT token in Key Vault: `make New-WebhookExecutorToken`
+3. Generate JWT token, store it and its secret in Key Vault, and output the token: `make New-WebhookExecutorToken`
 4. Start the service with client secret: `make Start-Webhook AZURE_CLIENT_SECRET="<secret>"`
 
 ## Features
@@ -159,21 +159,25 @@ GET /hooks/remote-mac?hostname=example.com&command=uptime
 
 All webhook-executor responses are returned as JSON objects with the following structure:
 
-- `exit_code` (integer, required): The exit code of the executed command (0 for success, non-zero for failure)
+- `status` (integer, required): The exit code of the executed command (0 for success, non-zero for failure)
 - `reason` (string, required): A description of the command execution result
-- `error` (string or null, optional): Error details if the command failed, or `null` if successful
 - `stdout` (string, optional): The standard output from the executed command
 - `stderr` (string, optional): The standard error output from the executed command
+- `error` (string or null, optional): Error details if the command failed, or `null` if successful
+- `authToken` (string, optional): When a presented JWT is refreshed the executor may return a refreshed token here; clients should use it for subsequent requests if present.
+- `correlationId` (string, required): A UUID v4 correlation identifier returned with every response; useful for tracing logs for this request.
 
 Example successful response:
 
 ```json
 {
-  "exit_code": 0,
+  "status": 0,
   "reason": "Command executed successfully",
-  "error": null,
   "stdout": " 14:32:15 up  5:23,  1 user,  load average: 0.00, 0.00, 0.00\n",
-  "stderr": ""
+  "stderr": "",
+  "error": null,
+  "authToken": null,
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -181,12 +185,16 @@ Example error response:
 
 ```json
 {
-  "exit_code": 1,
+  "status": 1,
   "reason": "Command failed",
-  "error": "uptime: command not found",
   "stdout": "",
-  "stderr": "bash: uptime: command not found\n"
+  "stderr": "bash: uptime: command not found\n",
+  "error": "uptime: command not found",
+  "authToken": null,
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000"
 }
+
+Note: webhook-executor writes diagnostic and runtime logs to the container logging stream (s6 / PID 1 stderr when available) and only emits the JSON response on stdout. This ensures diagnostic logs are captured by the container logging infrastructure and are not mixed into HTTP responses returned to callers.
 ```
 
 A test script `test/Test-WebhookExecutor` is provided for validating webhook-executor API responses.
@@ -196,6 +204,13 @@ A test script `test/Test-WebhookExecutor` is provided for validating webhook-exe
 - `WEBHOOK_PORT`: Port to listen on (default: 9000)
 - `WEBHOOK_TLS_CERT`: Path to TLS certificate file
 - `WEBHOOK_TLS_KEY`: Path to TLS private key file
+
+#### JWT refresh configuration
+
+- `WEBHOOK_JWT_MIN_TTL`: duration string (e.g. `5m`, `30s`) that controls how close to expiry a presented JWT must be before the service issues a refreshed JWT. Default: `5m`.
+- `WEBHOOK_JWT_NEW_TTL`: duration string (e.g. `24h`, `60m`) used as the TTL for a newly issued refreshed JWT. Default: `24h`.
+
+The service logs a warning if one of the above variables is present but cannot be parsed as a Go `time.Duration`.
 
 ### Command Line Options
 

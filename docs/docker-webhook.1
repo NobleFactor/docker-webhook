@@ -15,7 +15,8 @@ what appears in the brief help output (the `help-short` target):
 .RS
 .IP "1." 3
 Section headers: a line beginning with `##@` (two hashes and an at-symbol)
-marks a section heading in the output.
+.TP
+.
 .IP "2." 3
 Target annotations: append an inline comment `##` to a target line to make it
 appear in the brief help listing. The text after `##` is used as the short
@@ -75,7 +76,7 @@ The service port that the webhook listens on inside the container. It defaults t
 .B WEBHOOK_PUID
 The user ID used when adjusting ownership inside the container's volume layout.
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 The name of the secret in the Azure Key Vault that holds the JWT token for
 webhook-executor. It is required if webhook-executor is used as execute-command in
 hooks.json.
@@ -328,6 +329,207 @@ Must be set (e.g., /webhook-executor). Specifies the endpoint path for the webho
 .PP
 These are mandatory because the test relies on Azure Key Vault for JWT-based authentication, requires a running webhook service for integration, and needs specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error. Optional variables like WEBHOOK_EXECUTOR_DESTINATION fall back to defaults if unset.
 .TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Derived as webhook-executor-$(LOCATION)-secret (e.g., webhook-executor-us-wa-secret)
+The target references the following variables (sourced from the makefile's parameter definitions and the target's code):
+.TP
+.B WEBHOOK_EXECUTOR_EXCLUDE
+Set to true to skip Test-WebhookExecutorIntegration.
+.PP
+Default Values
+.TP
+.B WEBHOOK_EXECUTOR_EXCLUDE
+false
+.PP
+Variables That Must Be Set and Why
+None. This is optional for excluding integration tests.
+.PP
+These are optional because the test suite can run without the integration test if excluded.
+.TP
+.B Test-WebhookExecutorStandalone
+Run `test/Test-WebhookExecutorStandalone` directly against the `webhook-executor` binary. Requires `LOCATION`; reads Key Vault configuration from `webhook.config/$(LOCATION)/hooks.env`, fetches the client secret from Key Vault using the configured `WEBHOOK_AZURE_CLIENT_NAME`/`WEBHOOK_TOKEN_SECRET_NAME`, and accepts test commands via `WEBHOOK_EXECUTOR_COMMAND` (semicolon-separated).
+
+.PP
+.B Note
+When the executor runs inside a container, it will attempt to send diagnostic logs to the container logging stream (PID 1's stderr when available). Those diagnostic logs go to the container logger and are not mixed into the JSON response returned by the executor; the HTTP-facing payload contains only the executor stdout JSON (which itself contains the remote command stdout/stderr fields).
+.PP
+Variables Referenced in Test-WebhookExecutorStandalone Target
+.PP
+The target references the following variables (sourced from the makefile's parameter definitions and the target's code):
+.TP
+.B LOCATION
+Determines the location (e.g., "us-wa") for config paths and naming.
+.TP
+.B hooks_env
+Derived as webhook.config/$(LOCATION)/hooks.env (the environment file path).
+.TP
+.B WEBHOOK_KEYVAULT_URL
+Azure Key Vault URL for JWT retrieval.
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Name of the secret in Key Vault containing the JWT.
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+Name of the secret in Key Vault containing the Azure service principal client secret.
+.TP
+.B WEBHOOK_EXECUTOR_COMMAND
+Semicolon-separated list of commands to test (e.g., "echo hello;echo world").
+.TP
+.B CONTAINER_HOSTNAME
+Derived as webhook-$(LOCATION)$(hostname_suffix).
+.TP
+.B CONTAINER_DOMAIN_NAME
+Domain name for the container.
+.TP
+.B CONTAINER_ENVIRONMENT
+Environment suffix (e.g., "dev").
+.TP
+.B hostname_suffix
+Derived as -$(CONTAINER_ENVIRONMENT) if not "prod".
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Derived as webhook-executor-$(LOCATION)-secret.
+.PP
+Default Values
+.TP
+.B LOCATION
+Defaults to the result of curl --fail --silent "http://ip-api.com/json?fields=countryCode,region" | jq --raw-output '"\(.countryCode)-\(.region)"' | tr '[:upper:]' '[:lower:]' (e.g., "us-wa" based on IP geolocation). Can be overridden.
+.TP
+.B CONTAINER_DOMAIN_NAME
+localdomain
+.TP
+.B CONTAINER_ENVIRONMENT
+dev
+.TP
+.B hostname_suffix
+-dev (since CONTAINER_ENVIRONMENT defaults to "dev", not "prod")
+.TP
+.B CONTAINER_HOSTNAME
+webhook-$(LOCATION)-dev (e.g., webhook-us-wa-dev)
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+webhook-executor-$(LOCATION)-secret (e.g., webhook-executor-us-wa-secret)
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+webhook-executor-sp
+.PP
+Variables That Must Be Set and Why
+.TP
+.B WEBHOOK_KEYVAULT_URL
+Must be set in hooks_env (e.g., https://myvault.vault.azure.net). Required for the script to connect to Azure Key Vault and retrieve the JWT secret.
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Must be set in hooks_env (e.g., webhook-secret). Specifies the Key Vault secret name containing the JWT; the script uses this to fetch the token.
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+Must be set (e.g., webhook-executor-sp). The display name of the Azure service principal; used to fetch AZURE_CLIENT_ID and AZURE_TENANT_ID from Azure AD.
+.TP
+.B AZURE_CLIENT_SECRET
+Must be set (e.g., a secret string). The client secret for the Azure service principal; required for authentication with Azure Key Vault.
+.TP
+.B WEBHOOK_EXECUTOR_COMMAND
+Must be set (e.g., via make WEBHOOK_EXECUTOR_COMMAND="echo hello"). Defines the commands the test will execute against the webhook-executor binary; without it, the test has no operations to validate.
+.PP
+These are mandatory because the test relies on Azure Key Vault for JWT-based authentication and requires specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error.
+.TP
+.B Test-WebhookExecutorIntegration
+
+Run `test/Test-WebhookExecutorIntegration` against a running webhook service. This target requires `DESTINATION`, `LOCATION` and `TRIGGER` (the hook id); it sources Key Vault variables from `volumes/$(LOCATION)/hooks.env`, uses `CONTAINER_HOSTNAME` as the container name when invoking the test, passes `TRIGGER` as `--trigger` (the request is made to /hooks/<trigger>), and passes `WEBHOOK_EXECUTOR_COMMAND` as a single `--command` argument (semicolon-separated). The test script splits the string on `;` and issues one request per command.
+.PP
+Variables Referenced in Test-WebhookExecutorIntegration Target
+.PP
+The target references the following variables (sourced from the makefile's parameter definitions and the target's code):
+.TP
+.B LOCATION
+Determines the location (e.g., "us-wa") for config paths and naming.
+.TP
+.B hooks_env
+Derived as webhook.config/$(LOCATION)/hooks.env (the environment file path).
+.TP
+.B WEBHOOK_KEYVAULT_URL
+Azure Key Vault URL for JWT retrieval.
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Name of the secret in Key Vault containing the JWT.
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+Display name of the Azure service principal for fetching credentials.
+.TP
+.B AZURE_CLIENT_SECRET
+Client secret for the Azure service principal.
+.TP
+.B WEBHOOK_EXECUTOR_COMMAND
+Semicolon-separated list of commands to test (e.g., "echo hello;echo world").
+.TP
+.B CONTAINER_HOSTNAME
+Derived as webhook-$(LOCATION)$(hostname_suffix).
+.TP
+.B CONTAINER_DOMAIN_NAME
+Domain name for the container.
+.TP
+.B CONTAINER_ENVIRONMENT
+Environment suffix (e.g., "dev").
+.TP
+.B hostname_suffix
+Derived as -$(CONTAINER_ENVIRONMENT) if not "prod".
+.TP
+.B WEBHOOK_URL
+Base URL for the webhook service.
+.TP
+.B WEBHOOK_EXECUTOR
+Path suffix for the webhook-executor endpoint.
+.PP
+Default Values
+.TP
+.B LOCATION
+Defaults to the result of curl --fail --silent "http://ip-api.com/json?fields=countryCode,region" | jq --raw-output '"\(.countryCode)-\(.region)"' | tr '[:upper:]' '[:lower:]' (e.g., "us-wa" based on IP geolocation). Can be overridden.
+.TP
+.B CONTAINER_DOMAIN_NAME
+localdomain
+.TP
+.B CONTAINER_ENVIRONMENT
+dev
+.TP
+.B hostname_suffix
+-dev (since CONTAINER_ENVIRONMENT defaults to "dev", not "prod")
+.TP
+.B CONTAINER_HOSTNAME
+webhook-$(LOCATION)-dev (e.g., webhook-us-wa-dev)
+.TP
+.B WEBHOOK_URL
+Not defined in makefile (assumed to be set externally, e.g., http://localhost:9000)
+.TP
+.B WEBHOOK_EXECUTOR
+Not defined in makefile (assumed to be set externally, e.g., /webhook-executor)
+.PP
+Variables That Must Be Set and Why
+.TP
+.B WEBHOOK_KEYVAULT_URL
+Must be set in hooks_env (e.g., https://myvault.vault.azure.net). Required for the script to connect to Azure Key Vault and retrieve the JWT secret.
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+Must be set in hooks_env (e.g., webhook-secret). Specifies the Key Vault secret name containing the JWT; the script uses this to fetch the token.
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+Must be set (e.g., webhook-executor-sp). The display name of the Azure service principal; used to fetch AZURE_CLIENT_ID and AZURE_TENANT_ID from Azure AD.
+.TP
+.B AZURE_CLIENT_SECRET
+Must be set (e.g., a secret string). The client secret for the Azure service principal; required for authentication with Azure Key Vault.
+.TP
+.B WEBHOOK_EXECUTOR_COMMAND
+Must be set (e.g., via make WEBHOOK_EXECUTOR_COMMAND="echo hello"). Defines the commands the test will execute against the webhook-executor binary; without it, the test has no operations to validate.
+.TP
+.B TRIGGER
+Must be set (e.g., my-hook-id). The identifier to include in the request path as /hooks/<trigger>; required for the Test-WebhookExecutorIntegration target. When invoking the integration test via `make`, set TRIGGER on the make command-line (for example: `make Test-WebhookExecutorIntegration TRIGGER=my-hook-id ...`).
+.TP
+.B WEBHOOK_URL
+Must be set (e.g., http://localhost:9000). Specifies the base URL of the running webhook service for integration testing.
+.TP
+.B WEBHOOK_EXECUTOR
+Must be set (e.g., /webhook-executor). Specifies the endpoint path for the webhook-executor API.
+.PP
+These are mandatory because the test relies on Azure Key Vault for JWT-based authentication, requires a running webhook service for integration, and needs specific commands to test the webhook-executor functionality. The hooks_env file must exist and contain the Azure variables, or the target will exit with an error.
+.TP
 .B Prepare-WebhookDeployment
 This target generates per-location compose and certificate-request files when the
 environment file is missing or stale.
@@ -382,7 +584,7 @@ Whether to exclude webhook-executor.
 .B WEBHOOK_KEYVAULT_URL
 Azure Key Vault URL for build arg.
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Secret name for build arg.
 .TP
 .B AZURE_CLIENT_ID
@@ -429,7 +631,7 @@ false
 .B WEBHOOK_KEYVAULT_URL
 Not specified
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Not specified
 .TP
 .B AZURE_CLIENT_ID
@@ -452,7 +654,7 @@ Must be set (e.g., 3.1.5.0). Specifies the s6 overlay version for the image.
 .B WEBHOOK_KEYVAULT_URL
 Must be set if WEBHOOK_EXECUTOR_EXCLUDE is false (e.g., https://myvault.vault.azure.net). Required for webhook-executor to access Key Vault.
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Must be set if WEBHOOK_EXECUTOR_EXCLUDE is false (e.g., webhook-secret). Specifies the secret for JWT.
 .TP
 .B AZURE_CLIENT_ID
@@ -560,38 +762,46 @@ The target references the following variables (sourced from the makefile's param
 .B WEBHOOK_KEYVAULT_URL
 Azure Key Vault URL.
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Name of the secret for the JWT secret.
 .TP
 .B LOCATION
 Location for JWT payload.
 .TP
-.B WEBHOOK_TOKEN_NAME
-Name of the secret for the JWT token.
+.B WEBHOOK_TOKEN_SECRET_NAME
+Name of the Key Vault secret that holds the random shared secret used to sign JWTs.
+.PP
+The target accepts the following additional variable related to granting Key Vault access:
+.PP
+.TP
+.B WEBHOOK_AZURE_CLIENT_NAME
+Display name of the Azure service principal to grant Key Vault secret get permission via the
+\fB--permit-principal-name\fR argument; the script will exit with an error if the display name
+cannot be resolved to an Azure AD service principal appId in the current tenant.
 .PP
 Default Values
 .TP
 .B WEBHOOK_KEYVAULT_URL
 Not specified
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Not specified
 .TP
 .B LOCATION
 From IP geolocation
 .TP
-.B WEBHOOK_TOKEN_NAME
-webhook-executor-$(LOCATION)-token
+.B WEBHOOK_TOKEN_SECRET_NAME
+webhook-executor-$(LOCATION)-secret
 .PP
 Variables That Must Be Set and Why
 .TP
 .B WEBHOOK_KEYVAULT_URL
 Must be set (e.g., https://myvault.vault.azure.net). Required to specify the Key Vault for storing secrets.
 .TP
-.B WEBHOOK_SECRET_NAME
+.B WEBHOOK_TOKEN_SECRET_NAME
 Must be set (e.g., webhook-secret). Specifies the secret name for the random JWT secret.
 .PP
-These are mandatory for Key Vault operations; LOCATION and WEBHOOK_TOKEN_NAME have defaults.
+These are mandatory for Key Vault operations; LOCATION and WEBHOOK_TOKEN_SECRET_NAME have defaults.
 .TP
 .B New-WebhookAzureAuth
 Initialize Azure service principal authentication for webhook-executor. Prompts for
@@ -599,6 +809,23 @@ client ID, tenant ID, and client secret, then updates hooks.env with the values.
 .PP
 Variables Referenced in New-WebhookAzureAuth Target
 .PP
+The target references the following variables (sourced from the makefile's parameter definitions and the target's code):
+.TP
+.B LOCATION
+Location for the hooks.env file path.
+.PP
+Default Values
+.TP
+.B LOCATION
+From IP geolocation
+.PP
+Variables That Must Be Set and Why
+None. The target prompts for Azure credentials interactively.
+.PP
+This target does not require pre-set variables as it collects input from the user.
+.TP
+.B WEBHOOK_TOKEN_SECRET_NAME
+webhook-executor-$(LOCATION)-secret
 The target references the following variables (sourced from the makefile's parameter definitions and the target's code):
 .TP
 .B LOCATION

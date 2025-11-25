@@ -2,68 +2,73 @@
 .\" SPDX-License-Identifier: MIT
 .TH Test-WebhookExecutorStandalone 1 "November 2025" "docker-webhook" "User Commands"
 .SH NAME
-Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary directly
+Test-WebhookExecutorStandalone \- black-box test for webhook-executor binary with container provisioning
 .SH SYNOPSIS
 .B Test-WebhookExecutorStandalone
-\fI--location\fR \fILOCATION\fR \fI--token-name\fR \fITOKEN_NAME\fR \fI--destination\fR \fIDESTINATION\fR \fI--service-principal-name\fR \fINAME\fR \fI--service-principal-password\fR \fIPASSWORD\fR \fI--command\fR \fICMD\fR [\fI--command\fR \fICMD\fR ...] [\fI--help\fR]
+\fI--location\fR \fILOCATION\fR \fI--command\fR \fICOMMANDS\fR [\fI--help\fR]
 .SH DESCRIPTION
 Test-WebhookExecutorStandalone is a black-box test script that validates the responses
 from the webhook-executor binary directly. It sources the hooks environment file for the specified location
-to obtain WEBHOOK_KEYVAULT_URL and WEBHOOK_SECRET_NAME, fetches Azure service principal credentials
+to obtain WEBHOOK_KEYVAULT_URL and WEBHOOK_TOKEN_SECRET_NAME, fetches Azure service principal credentials
 (client ID, tenant ID, and client secret) using the provided service principal name, fetches the JWT token
-from Azure Key Vault, and runs the Go binary with command execution parameters and JWT authentication,
-verifying that the JSON responses conform to the expected schema.
+from Azure Key Vault, provisions a test Docker container with SSH access, and runs the Go binary with command
+execution parameters and JWT authentication, verifying that the JSON responses conform to the expected schema.
 
-The script is designed for testing webhook-executor functionality without the webhook service,
-focusing on direct binary execution. It measures test execution time
-and reports pass/fail counts for each tested command.
+The script automatically:
+.IP "-" 2
+Builds the test container image if not present
+.IP "-" 2
+Starts the container with the authorized SSH key
+.IP "-" 2
+Waits for the container and SSH user to be ready
+.IP "-" 2
+Constructs the SSH destination address dynamically using Docker inspection
+.IP "-" 2
+Sets WEBHOOK_CONFIG to the location-based configuration directory
 
 For each command specified:
 .IP "-" 2
-Runs the webhook-executor binary with --destination, --command, --authorization
+Runs the webhook-executor binary with the constructed destination, --command, --authorization
 .IP "-" 2
-Validates the JSON response contains required fields: exit_code, reason, error, stdout, stderr
+Validates the JSON response contains required fields: status, reason, stdout, stderr, error, authToken, correlationId
+.IP "Note:" 2
+When running inside a container the executor writes its diagnostic logs to the container logging stream (PID 1's stderr when available); those diagnostic log lines are not included in the JSON response body. The JSON payload produced by the executor contains the remote command's stdout and stderr values inside the `stdout` and `stderr` fields.
 .IP "-" 2
 Reports success or failure with detailed output
 
-The test requires the webhook-executor binary to be available and environment variables set for Key Vault access.
+The test requires the webhook-executor binary to be available, Docker for container provisioning,
+and environment variables set for Key Vault access.
 See the API Reference section in README.md for complete response schema documentation.
 .SH OPTIONS
 .TP
 .B -h,--help
 Display usage information and exit.
 .TP
-.B --command CMD
-Required. One or more commands to execute and test. Each command is sent as a separate
-request. Commands should be simple shell commands that produce predictable output.
-.TP
-.B --destination DESTINATION
-Required. The SSH destination for command execution (e.g., user@host).
+.B --command COMMANDS
+Required. A semicolon-separated list of commands to execute and test (for example: "echo 'hello world'; ls").
+The script splits the string on semicolons and executes each command in-order while preserving embedded
+spaces and quotes.
 .TP
 .B --location LOCATION
 Required. The location identifier (e.g., us-wa) used to source the hooks environment file
-from webhook.config/LOCATION/hooks.env.
+from webhook.config/LOCATION/hooks.env and set WEBHOOK_CONFIG.
 .TP
-.B --token-name TOKEN_NAME
-Required. The name of the secret in Azure Key Vault containing the JWT token for authentication.
-.TP
-.B --service-principal-name NAME
-Required. The display name of the Azure service principal to query for credentials (client ID and tenant ID).
-.TP
-.B --service-principal-password PASSWORD
-Required. The client secret for the Azure service principal.
+.B --location LOCATION
+Required. The location identifier (e.g., us-wa). The test sources credentials and Key Vault-related variables
+from the location-specific hooks.env (webhook.config/LOCATION/hooks.env). The script may also invoke
+the bundled bin/New-WebhookExecutorToken to obtain or refresh a JWT token as needed.
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command
 failures are reported but do not immediately terminate the script; all specified commands
 are tested.
 .SH EXAMPLES
-Test a single command directly:
+Test a single semicolon-separated command string:
 .IP
-Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --destination user@host --command uptime
+Test-WebhookExecutorStandalone --location us-wa --command "uptime"
 
-Test multiple commands:
+Test multiple commands (semicolon-separated):
 .IP
-Test-WebhookExecutorStandalone --location us-wa --token-name webhook-executor-us-wa-token --destination server.local --command "echo hello" --command "date" --command "whoami"
+Test-WebhookExecutorStandalone --location us-wa --command "echo 'hello world'; date; whoami"
 .SH SEE ALSO
 .BR README.md (API Reference),
 .BR docker-webhook (1),

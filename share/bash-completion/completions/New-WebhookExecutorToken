@@ -9,7 +9,18 @@ _new_webhook_executor_token_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--env-file --algorithm --keyvault-url --location --secret-name --token-name --permit-spn --help"
+    opts="-h --help --algorithm --env-file --grant-access-to --keyvault-name --location --secret-name --silent --token-name"
+
+    case "${prev}" in
+        --env-file)
+            COMPREPLY=( $(compgen -f -- "${cur}") )
+            return 0
+            ;;
+        --algorithm)
+            COMPREPLY=( $(compgen -W "HS256 HS384 HS512" -- "${cur}") )
+            return 0
+            ;;
+    esac
 
     if [[ ${cur} == -* ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
