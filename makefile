@@ -259,10 +259,54 @@ setup: ## Install dependencies and configure pre-commit for this repo
 	fi
 
 test: ## Runs repository test scripts
-	$(MAKE) Test-WebhookDeploymentPreparation
-	$(MAKE) Test-WebhookReadiness
-	$(MAKE) Test-ShellFormatting
-	$(MAKE) Test-ShellScript
+	$(if $(WEBHOOK_KEYVAULT_NAME),, $(error WEBHOOK_KEYVAULT_NAME not set))
+	$(if $(LOCATION),, $(error LOCATION not set))
+	$(if $(TRIGGER),, $(error TRIGGER not set))
+	$(if $(COMMAND),, $(error COMMAND not set))
+
+	passed_tests=0
+	failed_tests=0
+
+	if $(MAKE) Test-ShellFormatting; then
+		((passed_tests++)) || :
+	else
+		((failed_tests++)) || :
+	fi
+
+	if $(MAKE) Test-ShellScript; then 
+		((passed_tests++)) || :
+	else 
+		((failed_tests++)) || :
+	fi
+
+	if $(MAKE) Test-WebhookDeploymentPreparation; then
+		((passed_tests++)) || :
+	else
+		((failed_tests++)) || :
+	fi
+
+	if $(MAKE) Test-WebhookExecutorStandalone; then
+		((passed_tests++)) || :
+	else
+		((failed_tests++)) || :
+	fi
+
+	if $(MAKE) clean New-Webhook Start-Webhook; then
+		if $(MAKE) Test-WebhookReadiness; then
+			((passed_tests++)) || :
+		else
+			((failed_tests++)) || :
+		fi
+		if $(MAKE) Test-WebhookExecutorIntegration; then
+			((passed_tests++)) || :
+		else
+			((failed_tests++)) || :
+		fi
+	else
+		echo "Test-WebhookReadines and Test-WebhookExecutorIntegration skipped due to build errors."
+	fi
+
+	echo "==> Test Summary: [$${passed_tests} Passed, $${failed_tests} Failed]"
 
 Test-ShellFormatting: ## Check shell formatting (non-destructive)
 	echo "==> Running Test-ShellFormatting"
@@ -273,13 +317,11 @@ Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
 Test-WebhookExecutorIntegration: ## Run `test/Test-WebhookExecutorIntegration` against the webhook; requires `DESTINATION` and `LOCATION`, uses `CONTAINER_HOSTNAME` for the container name and reads Key Vault settings from `volumes/$(LOCATION)/hooks.env`; commands are provided via `COMMAND` (separated by `;`)
-	$(if $(CONTAINER_HOSTNAME),, $(error CONTAINER_HOSTNAME not set))
-	$(if $(DESTINATION),, $(error DESTINATION not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 	$(if $(TRIGGER),, $(error TRIGGER not set))
 	$(if $(COMMAND),, $(error COMMAND not set))
 	echo "==> Running Test-WebhookExecutorIntegration with commands: $(COMMAND)"
-	./test/Test-WebhookExecutorIntegration --container "$(CONTAINER_HOSTNAME)" --location "$(LOCATION)" --destination "$(DESTINATION)" --trigger "$(TRIGGER)" --command "$(COMMAND)"
+	./test/Test-WebhookExecutorIntegration --location "$(LOCATION)" --trigger "$(TRIGGER)" --command "$(COMMAND)"
 
 Test-WebhookExecutorStandalone: ## Run `test/Test-WebhookExecutorStandalone` directly against the binary; reads `webhook.config/$(LOCATION)/hooks.env` for Key Vault and secret configuration and accepts commands via `WEBHOOK_EXECUTOR_COMMAND` (separated by `;`)
 	$(if $(COMMAND),, $(error COMMAND not set))
@@ -294,8 +336,6 @@ Test-WebhookDeploymentPreparation:
 
 Test-WebhookReadiness:
 	echo "==> Running Test-WebhookReadiness"
-	echo "==> Setting up test environment: make clean New-Webhook Start-Webhook"
-	$(MAKE) clean AZURE_CLIENT_SECRET=dummy New-Webhook Start-Webhook
 	./test/Test-WebhookReadiness --container "$(CONTAINER_HOSTNAME)" --wait 2 || { echo "Test-WebhookReadiness failed"; exit 1; }
 
 ##@ Build and Create

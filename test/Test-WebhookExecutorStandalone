@@ -36,25 +36,6 @@ function test_command {
     return 0
 }
 
-function wait_for_container_and_user {
-
-    local container="$1"
-    local user="$2"
-    local timeout="${3:-60}"
-    local end="$(($(date +%s) + timeout))"
-
-    while (($(date +%s) < end)); do
-        local cid
-        cid=$(sudo docker ps --filter "name=$container" --filter "status=running" -q 2>/dev/null) || cid=""
-        if [[ -n "$cid" ]] && sudo docker exec "$container" id "$user" >/dev/null 2>&1; then
-            return 0
-        fi
-        sleep 1
-    done
-
-    error 1 "timed out waiting for ${container}/${user}"
-}
-
 ###########
 # Arguments
 ###########
@@ -111,32 +92,13 @@ source "$hooks_env"
 declare -r vault_name=$(echo "$WEBHOOK_KEYVAULT_URL" | awk '{ gsub(/https:\/\//, ""); sub(/\.vault\.azure\.net.*/, ""); print }')
 export AZURE_CLIENT_SECRET="$(az keyvault secret show --vault-name "$vault_name" --name "$WEBHOOK_AZURE_CLIENT_NAME-password" --query value -o tsv)"
 
-# Ensure that webhook-executor can locate its location-based configuration
+# Ensure that webhook-executor can find its location-based configuration
 
 export WEBHOOK_CONFIG="${webhook_config}"
-declare -r destination=webhook-executor-destination
 
-note "Starting test container: ${destination}..."
+# Start the test container
 
-declare -r authorized_key="$(cat "${webhook_config}/ssh/id_rsa.pub")"
-declare -r auth_token="$(bin/New-WebhookExecutorToken --silent)"
-
-if [[ -n $(sudo docker ps -a --filter name=${destination} --format "{{.Names}}") ]]; then
-    sudo docker container rm --force "${destination}" >/dev/null
-fi
-
-if [[ -z $(sudo docker images -q noblefactor/${destination}) ]]; then
-    sudo docker build -t "noblefactor/${destination}" -f "Dockerfile.${destination}" .
-fi
-
-sudo docker run -d --name "${destination}" "noblefactor/${destination}" "${authorized_key}" >/dev/null
-wait_for_container_and_user ${destination} ${destination} 60
-
-declare -r destination_address="ssh://${destination}@$(
-    sudo docker inspect --format='{{.NetworkSettings.IPAddress}}' ${destination}
-):$(
-    sudo docker inspect --format='{{.Config.ExposedPorts}}' "${destination}" | awk -F'[][/:]' '{print $2}'
-)"
+declare -r destination="$("${script_root}/Start-WebhookExecutorTestContainer" --location "${location}")"
 
 # Run test commands
 
@@ -148,7 +110,7 @@ failed_tests=0
 
 while IFS= read -r line; do
     if [[ -n ${line:-} ]]; then
-        if test_command "${destination_address}" "$line"; then
+        if test_command "${destination}" "$line"; then
             ((passed_tests++)) || :
         else
             ((failed_tests++)) || :
@@ -159,6 +121,4 @@ done < <(printf '%s' "$commands" | awk 'BEGIN { RS = "[[:space:]]*;[[:space:]]*"
 declare -r end_time=$(date +%s)
 declare -r elapsed=$((end_time - start_time))
 
-note "Test Run Complete:
-Status: [$passed_tests Passed, $failed_tests Failed]
-Duration: ${elapsed}s"
+note "==> Test Complete: Test-WebhookExecutorStandalone - Status: [$passed_tests Passed, $failed_tests Failed] Duration: ${elapsed}s"

@@ -113,4 +113,4 @@ if ! "$shellcheck_path" -x "${files[@]}"; then
     error 1 "shellcheck detected issues"
 fi
 
-success "shfmt and shellcheck passed on ${#files[@]} files"
+note "==> Test Complete: Test-ShellScript - Linting completed on ${#files[@]} files"

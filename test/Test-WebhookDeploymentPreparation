@@ -215,3 +215,5 @@ if ((passed_tests == total_tests)); then
 else
     echo >&2 && error 0 "$passed_tests/${total_tests} tests passed. Generated artifacts left in place for inspection."
 fi
+
+note "==> Test Complete: Test-WebhookDeploymentPreparation - Status: ${passed_tests}/${total_tests}"
