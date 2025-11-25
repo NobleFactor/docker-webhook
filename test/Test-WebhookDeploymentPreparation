@@ -217,3 +217,7 @@ else
 fi
 
 note "==> Test Complete: Test-WebhookDeploymentPreparation - Status: ${passed_tests}/${total_tests}"
+
+if ((passed_tests < total_tests)); then
+    exit 1
+fi

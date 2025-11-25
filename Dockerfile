@@ -37,7 +37,7 @@ fi
 tar -xzf webhook.tar.gz --strip 1
 go mod download
 CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/webhook
-apt remove --yes curl
+apt-get remove --yes curl
 rm -rf /var/lib/apt/lists/*
 EOF
 

@@ -87,7 +87,11 @@ fi
 
 source "$hooks_env"
 
-# Fetch AZURE_CLIENT_SECRET from key vault
+# Ensure we've got a fresh authorization token
+
+declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${hooks_env}")"
+
+# Fetch AZURE_CLIENT_SECRET from key vault and create a new auth token
 
 declare -r vault_name=$(echo "$WEBHOOK_KEYVAULT_URL" | awk '{ gsub(/https:\/\//, ""); sub(/\.vault\.azure\.net.*/, ""); print }')
 export AZURE_CLIENT_SECRET="$(az keyvault secret show --vault-name "$vault_name" --name "$WEBHOOK_AZURE_CLIENT_NAME-password" --query value -o tsv)"
@@ -122,3 +126,7 @@ declare -r end_time=$(date +%s)
 declare -r elapsed=$((end_time - start_time))
 
 note "==> Test Complete: Test-WebhookExecutorStandalone - Status: [$passed_tests Passed, $failed_tests Failed] Duration: ${elapsed}s"
+
+if ((failed_tests > 0)); then
+    exit 1
+fi
