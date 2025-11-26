@@ -51,17 +51,16 @@ declare -r image="${default_image}"
 # Main
 ###########
 
-# check required tools
-command -v docker >/dev/null 2>&1 || error 2 "docker is not installed or not in PATH"
-
 note "Image: $image"
 
 # Ensure artifacts directory exists for captured logs
+
 mkdir -p "$(dirname "$0")/artifacts" >/dev/null 2>&1 || true
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 logfile="$(dirname "$0")/artifacts/docker-logs-${timestamp}.log"
 
 # Discover or use specified container
+
 if [[ -n ${container_spec:-} ]]; then
     # Use the specified container name/ID
     if docker ps --filter "id=$container_spec" --format '{{.ID}}' | grep -q .; then
@@ -69,7 +68,7 @@ if [[ -n ${container_spec:-} ]]; then
     elif docker ps --filter "name=$container_spec" --format '{{.ID}}' | grep -q .; then
         container_id=$(docker ps --filter "name=$container_spec" --format '{{.ID}}')
     else
-        error 3 "could not find a running container with name or ID '$container_spec'"
+        error 1 "could not find a running container with name or ID '$container_spec'"
     fi
     container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
     note "Using specified container $container_name (id: $container_id)"
@@ -78,11 +77,39 @@ else
     container_id=$(docker ps --filter "ancestor=$image" --format '{{.ID}}' | head -n 1)
 
     if [[ -z "$container_id" ]]; then
-        error 3 "could not find a running container started from image '$image'"
+        error 1 "could not find a running container started from image '$image'"
     fi
 
     container_name=$(docker ps --filter "id=$container_id" --format '{{.Names}}' | head -n1)
     note "Using container $container_name (id: $container_id) started from $image"
+fi
+
+success=0
+
+docker exec "$container_name" bash -c '
+    set -o errexit
+    expected_files=(
+        "hooks.env"
+        "hooks.json"
+        "ssl-certificates/certificate.pem"
+        "ssl-certificates/certificate-request.conf"
+        "ssl-certificates/private-key.pem"
+        "ssl-certificates/self-signed.csr"
+        "ssh/id_rsa"
+        "ssh/id_rsa.pub"
+    )
+    for file in "${expected_files[@]}"; do
+        if [[ ! -f "/usr/local/etc/webhook/$file" ]]; then
+            echo "Missing file in bind mount: $file" >&2
+            exit 1
+        fi
+    done
+'
+if (($? == 0)); then
+    success "All deployment configuration files are present in the webhook bind mount volume."
+else
+    error 0 "Required deployment configuration files are missing from the webhook bind mount volume."
+    success=1
 fi
 
 note "Waiting up to ${wait_seconds}s (polling) for service to initialize..."
@@ -90,27 +117,47 @@ end_time=$((SECONDS + wait_seconds))
 logs=''
 
 while ((SECONDS <= end_time)); do
-    logs=$(docker logs --tail 2000 "$container_name" 2>&1 || true)
+    logs=$(docker logs --tail 2000 "$container_name" 2>&1 || :)
     printf '%s
 ' "$logs" >"$logfile"
     # Quick checks for success markers
     if printf '%s' "$logs" | grep -iq "serving hooks"; then
-        success "webhook started and serving hooks detected in logs."
+        success "Webhook binary started and serving hooks detected in logs."
+        # Wait for health status to become healthy
+        health_end_time=$((SECONDS + 10)) # Wait up to 10 seconds for health check
+        while ((SECONDS <= health_end_time)); do
+            health_status=$(docker inspect "$container_name" --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+            if [[ "$health_status" == "healthy" ]]; then
+                note "Container health status: $health_status"
+                note "Full logs saved to: $logfile"
+                note "==> Test Complete: Test-WebhookReadiness - readiness confirmed"
+                exit $success
+            elif [[ "$health_status" == "unhealthy" ]]; then
+                error 0 "Container is unhealthy"
+                success=1
+                break
+            fi
+            sleep 1
+        done
+        if [[ "$health_status" != "healthy" ]]; then
+            error 0 "Container did not become healthy within timeout: status=$health_status"
+            success=1
+        fi
         note "Full logs saved to: $logfile"
         note "==> Test Complete: Test-WebhookReadiness - readiness confirmed"
-        exit 0
+        exit $success
     fi
     if printf '%s' "$logs" | grep -iq "version [0-9]\+\.[0-9]"; then
-        error 0 "webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
+        error 0 "Webhook binary started (version found in logs), but 'serving hooks' text not matched. Check logs at: $logfile"
         note "==> Test Complete: Test-WebhookReadiness - binary started, but no serving hooks line matched"
-        exit 0
+        exit $success
     fi
     sleep 1
 done
 
 echo
 note "Container status:"
-docker ps --filter "name=$container_name" --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}' || true
+docker ps --filter "name=$container_name" --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}' || :
 
 echo
 note "Capturing final logs (last 2000 lines) to $logfile:"

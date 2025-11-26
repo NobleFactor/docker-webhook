@@ -55,7 +55,7 @@ MacPorts install instructions: https://www.macports.org/install.php
 
     # Install Colima Docker (if no docker runtime is available)
 
-    if !(command -v colima || command -v orbctl || [[ -d "/Applications/Docker.app" ]]); then
+    if ! (command -v colima || command -v orbctl || [[ -d "/Applications/Docker.app" ]]); then
         if command -v port >/dev/null; then
             sudo port install -N colima docker
         else
@@ -71,11 +71,11 @@ MacPorts install instructions: https://www.macports.org/install.php
     # Install Utilities (ports gets priority over brew)
 
     if command -v port >/dev/null; then
-        for utility in codespell curl gawk gmake grepcidr ipcalc jq jwt-cli moreutils shellcheck shfmt; do
-            command -v "${utility}" >/dev/null || sudo port install -N "${utility}"
+        for utility in codespell curl gawk gmake go grepcidr ipcalc jq jwt-cli moreutils shellcheck shfmt; do
+            command -v "${utility}" >/dev/null || sudo port -N install "${utility}"
         done
     elif command -v brew >/dev/null; then
-        for utility in codespell curl gawk grepcidr ipcalc jq jwt-cli make moreutils shellcheck shfmt; do
+        for utility in codespell curl gawk go grepcidr ipcalc jq jwt-cli make moreutils shellcheck shfmt; do
             command -v "${utility}" >/dev/null || HOMEBREW_NO_INTERACTIVE=1 brew install "${utility}"
         done
     fi
@@ -90,7 +90,7 @@ MacPorts install instructions: https://www.macports.org/install.php
     ;;
 Linux)
     sudo apt-get update
-    sudo apt-get install --yes make build-essential codespell curl gawk grepcidr ipcalc jq moreutils shellcheck shfmt
+    sudo apt-get install --yes build-essential codespell curl gawk golang-go grepcidr ipcalc jq make moreutils shellcheck shfmt
     sudo "${script_root}/Install-AzureClient"
     sudo "${script_root}/Install-Docker"
     ;;
@@ -99,11 +99,17 @@ esac
 note "Installing pre-commit for automated code quality checks..."
 
 if command -v pip >/dev/null; then
-    pip install --user pre-commit
+    pip install --user --no-warn-script-location pre-commit
 elif command -v pip3 >/dev/null; then
-    pip3 install --user pre-commit
+    pip3 install --user --no-warn-script-location pre-commit
 else
     error 1 "pip not found; skipping pre-commit installation. Install Python and pip to enable pre-commit checks."
+fi
+
+# On macOS, create a symlink in ~/.local/bin for consistency
+if [[ "$(uname)" == "Darwin" ]]; then
+    mkdir -p ~/.local/bin
+    ln -sf ~/Library/Python/3.11/bin/pre-commit ~/.local/bin/pre-commit
 fi
 
 if command -v pre-commit >/dev/null; then

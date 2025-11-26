@@ -9,17 +9,22 @@ services:
     networks:
       docker_network:
         ipv4_address: ${IP_ADDRESS:-}
-    restart: always
+    volumes:
+      - type: bind
+        source: ${WEBHOOK_VOLUME}
+        target: /usr/local/etc/webhook
+        bind:
+          propagation: rprivate
     environment:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
       WEBHOOK_PORT: ${WEBHOOK_PORT:-9000}
       PUID: ${WEBHOOK_PUID:-}
       PGID: ${WEBHOOK_PGID:-}
     healthcheck:
-      test: ["CMD-SHELL", "http_status=$$(curl --silent -I http://localhost:$${WEBHOOK_PORT:-9000}/ | head -n 1 | sed 's/HTTP\\\\/[^ ]* //') ; if [[ \"$$http_status\" == 200* ]]; then echo \"$$http_status\"; exit 0; else echo \"$$http_status\"; exit 1; fi"]
+      test: ["CMD", "bash", "-c", "WEBHOOK_PORT=${WEBHOOK_PORT:-9000} /usr/local/bin/Test-WebhookHealth"]
       interval: 60s
       retries: 5
-      start_period: 300s
+      start_period: 1s
       timeout: 2s
     logging:
       driver: json-file
@@ -28,3 +33,4 @@ services:
         max-file: "1"
     security_opt:
       - apparmor:unconfined
+    restart: always

@@ -88,7 +88,7 @@ TAG ?= 1.0.0-preview.1
 
 override project_name := webhook
 override project_root := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
-override project_file := $(project_root)/$(project_name)-$(LOCATION).yaml
+override project_file := $(project_root)/compose.yaml
 override project_networks_file := $(project_root)/$(project_name).networks.yaml
 
 # Compose file may not exist initially; targets below will ensure generation when needed.
@@ -344,7 +344,7 @@ Test-WebhookReadiness:
 
 Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than webhook-$(LOCATION).env
 	env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
-	if [[ ! -f "$$env_file" ]]; thenmak
+	if [[ ! -f "$$env_file" ]]; then
 		echo "Missing environment file: $$env_file"
 		exit 1
 	fi
@@ -450,6 +450,7 @@ Get-WebhookStatus: $(project_file) ## Show compose status (JSON)
 ##@ Runtime resource updates
 
 Sync-WebhookConfig: ## Synchronize webhook config directory to volumes with rsync (preserves permissions, handles additions/removals)
+	mkdir -p "$(volume_root)"
 	rsync -av --delete "webhook.config/$(LOCATION)/" "$(volume_root)/"
 
 Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCATION

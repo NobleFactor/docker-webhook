@@ -1,0 +1,6 @@
+response=$(curl --head --insecure --no-progress-meter https://localhost:${WEBHOOK_PORT:-9000}/ 2>&1)
+exit_code=$?
+echo "${response}"
+((${exit_code} == 0)) || exit 1
+http_status=$(echo "${response}" | awk '/^HTTP\/1\.1 / { print $2; exit }')
+(($http_status == 200)) || exit 1
