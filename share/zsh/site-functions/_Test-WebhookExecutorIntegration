@@ -6,8 +6,6 @@
 #compdef Test-WebhookExecutorIntegration
 _arguments \
   '--command[Command to execute (semicolon-separated list)]' \
-  '--container[Container name running webhook service]' \
-  '--destination[Destination SSH target (user@host or ssh://host[:port])]' \
   '--location[Webhook/location identifier]' \
   '--trigger[Trigger id to include in request (optional)]' \
   '--help[Show usage information and exit]'

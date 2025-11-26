@@ -3,13 +3,7 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-#compdef Test-WebhookReadiness
-
-_Test-WebhookReadiness() {
-  _arguments \
-    '--container[Container name or ID to test]' \
-    '--wait[Number of seconds to wait]:seconds:' \
-    '--help[Show usage information and exit]'
-}
-
-_Test-WebhookReadiness "$@"
+#compdef Install-AzureClient
+_arguments \
+  '--help[Show usage information and exit]' \
+  '--force[Force reinstallation of Azure CLI even if already installed]'

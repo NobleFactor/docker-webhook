@@ -16,4 +16,4 @@ _new_dockernetwork_completions()
         return 0
     fi
 }
-complete -F _new_docker_network_completions New-DockerNetwork
+complete -F _new_dockernetwork_completions New-DockerNetwork

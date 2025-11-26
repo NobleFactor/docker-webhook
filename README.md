@@ -3,6 +3,62 @@
 
 Deploy secure, containerized webhook services that execute commands in response to HTTP requests. This project provides production-ready Docker images with built-in authentication, configuration management, and deployment tooling to get your webhook infrastructure running quickly and reliably.
 
+## Prerequisites
+
+Before deploying, ensure your Debian-based Linux or macOS system has the necessary dependencies installed. The project includes automated scripts for setup:
+
+### Dependency Installation
+
+Run the installation script to set up required tools:
+
+```bash
+./bin/Install-Dependencies
+```
+
+This script installs:
+
+- Docker runtime (If Colima, OrbStack, or Docker Desktop are not present)
+- Azure CLI for secure authentication (Brew is required on macOS)
+- Development tools (Go, shellcheck, jq, etc.)
+- Pre-commit hooks for code quality
+
+### Azure CLI Setup
+
+For secure webhook authentication using Azure Key Vault:
+
+```bash
+# Login to Azure (if not already logged in)
+az login
+
+# Set variables (customize as needed)
+AZURE_RESOURCE_GROUP="webhook-rg"
+AZURE_LOCATION="eastus"
+AZURE_KEYVAULT_NAME="webhook-keyvault"
+AZURE_SP_NAME="webhook-executor-sp"
+AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Create resource group
+az group create --name $AZURE_RESOURCE_GROUP --location $AZURE_LOCATION --output none
+
+# Create Key Vault
+az keyvault create --name $AZURE_KEYVAULT_NAME --resource-group $AZURE_RESOURCE_GROUP --location $AZURE_LOCATION --output none
+
+# Create service principal with Reader role on the subscription
+SP_OUTPUT=$(az ad sp create-for-rbac --name $AZURE_SP_NAME --role reader --scopes /subscriptions/$AZURE_SUBSCRIPTION_ID --output json)
+SP_PASSWORD=$(echo $SP_OUTPUT | jq -r '.password')
+
+# Save the service principal password to Key Vault
+az keyvault secret set --vault-name $AZURE_KEYVAULT_NAME --name "webhook-sp-password" --value $SP_PASSWORD --output none
+
+echo "Azure setup complete. Service principal password stored in Key Vault '$AZURE_KEYVAULT_NAME'."
+```
+
+Create a service principal for Key Vault access:
+
+```bash
+az ad sp create-for-rbac --name "webhook-executor-sp" --role reader --scopes /subscriptions/<subscription-id>
+```
+
 ## Deployment Overview
 
 The `webhook.config/` directory contains your deployment configuration:
@@ -15,11 +71,12 @@ The `webhook.config/` directory contains your deployment configuration:
 
 ### Deployment Workflow
 
-1. **Generate Location**: Run `make Prepare-WebhookDeployment` to create compose files and certificates
-2. **Configure Hooks**: Create `webhook.config/$(LOCATION)/hooks.json` with your webhook rules
-3. **Set Environment**: Define location-specific settings in `webhook-$(LOCATION).env`
-4. **Build Container**: Execute `make New-WebhookContainer` to prepare the deployment
-5. **Start Service**: Use `make Start-Webhook` to launch the webhook service
+1. **Install Dependencies**: Run `./bin/Install-Dependencies` to set up required tools and Azure CLI
+2. **Generate Location**: Run `make Prepare-WebhookDeployment` to create compose files and certificates
+3. **Configure Hooks**: Create `webhook.config/$(LOCATION)/hooks.json` with your webhook rules
+4. **Set Environment**: Define location-specific settings in `webhook-$(LOCATION).env`
+5. **Build Container**: Execute `make New-WebhookContainer` to prepare the deployment
+6. **Start Service**: Use `make Start-Webhook` to launch the webhook service with optimized health checks (ready in ~1-3 seconds)
 
 For secure deployments with JWT-based HMAC authentication using Azure Key Vault:
 
@@ -27,6 +84,8 @@ For secure deployments with JWT-based HMAC authentication using Azure Key Vault:
 2. Set up authentication credentials for Key Vault access: `make New-WebhookAzureAuth LOCATION=<location>`
 3. Generate JWT token, store it and its secret in Key Vault, and output the token: `make New-WebhookExecutorToken`
 4. Start the service with client secret: `make Start-Webhook AZURE_CLIENT_SECRET="<secret>"`
+
+The deployment includes volume bindings for persistent configuration and fast health checks using the integrated `Test-WebhookHealth` script.
 
 ## Features
 
@@ -40,7 +99,28 @@ For secure deployments with JWT-based HMAC authentication using Azure Key Vault:
 - **Multi-Platform**: Supports AMD64 and ARM64 architectures
 - **Deployment Tooling**: Makefile targets for complete deployment lifecycle management
 
+## Health Checks
+
+The container includes optimized health checks for fast startup and reliability:
+
+- **Fast Readiness**: Health checks begin after 1 second (`start_period: 1s`) instead of 300 seconds
+- **HTTP Validation**: Uses `Test-WebhookHealth` script to verify the webhook service responds on port 9000
+- **Automatic Recovery**: Retries every 60 seconds with 5 attempts and 2-second timeout
+- **Integrated Script**: The health check script is baked into the Docker image for consistency
+
+Monitor health status:
+
+```bash
+docker ps --filter "name=webhook" --format "table {{.Names}}\t{{.Status}}"
+```
+
 ## Quick Start
+
+First, install dependencies:
+
+```bash
+./bin/Install-Dependencies
+```
 
 Deploy a webhook service in seconds:
 
@@ -369,12 +449,44 @@ Respond to Slack slash commands:
 git clone https://github.com/NobleFactor/docker-webhook.git
 cd docker-webhook
 
+# Install dependencies and set up pre-commit hooks
+./bin/Install-Dependencies
+
 # Build the image
 make New-WebhookImage
 
 # Run tests
 make test
 ```
+
+## Troubleshooting
+
+### Health Check Failures
+
+If the container shows `unhealthy`:
+
+- Check logs: `docker logs webhook`
+- Verify webhook is listening: `curl http://localhost:9000/`
+- Ensure configuration files are mounted correctly
+- Health checks start after 1s; wait a few seconds for initialization
+
+### Azure Authentication Issues
+
+- Confirm Azure CLI is installed: `az --version`
+- Login to Azure: `az login`
+- Verify service principal: `az ad sp list --display-name webhook-executor-sp`
+- Check Key Vault permissions: Ensure Reader role on the vault
+
+### Dependency Installation Problems
+
+- On macOS, ensure Homebrew or MacPorts is installed
+- For Linux, run with sudo if needed
+- Check for existing Docker runtimes before installation
+
+### Pre-commit Hook Issues
+
+- Install manually if pip fails: `pip3 install pre-commit`
+- Skip setup: Comment out pre-commit lines in Install-Dependencies if unwanted
 
 ## Contributing
 
