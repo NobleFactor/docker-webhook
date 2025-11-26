@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Noble Factor. All rights reserved.
+# Redistribution and use in source and binary forms, with or without modification, are permitted under the terms of the MIT License.
+
+source "$(dirname "$0")/Declare-BashScript" "$0" "help" "h" "$@"
+
+###########
+# Arguments
+###########
+
+declare -r synopsis="Install-AzureClient [--help] [--force]"
+eval set -- "$script_arguments"
+force=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage "$synopsis" # does not return
+            ;;
+        --force)
+            force=1
+            ;;
+        *)
+            error 2 "Unknown argument: $1"
+            ;;
+    esac
+    shift
+done
+
+if [ ! -f /etc/debian_version ]; then
+    error 2 "A debian-based system is required to install the Azure CLI and $(hostname) is running $(uname --operating-system)."
+fi
+
+if ((! $force)) && command -v az &> /dev/null; then
+    success "Azure CLI $(az --version | grep 'azure-cli' | awk '{print $2}') is already installed."
+fi
+
+###########
+# Main
+###########
+
+note "Downloading and installing the Azure CLI..."
+curl -sL https://aka.ms/InstallAzureCliDEB | sudo bash
+
+# Verify the installation
+
+if ! command -v az &> /dev/null; then
+    error 1 "Azure CLI installation failed. Please check the output for errors."
+fi
+
+success "Azure CLI $(az --version | grep 'azure-cli' | awk '{print $2}')" installed."
