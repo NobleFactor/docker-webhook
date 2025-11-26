@@ -95,3 +95,22 @@ Linux)
     sudo "${script_root}/Install-Docker"
     ;;
 esac
+
+note "Installing pre-commit for automated code quality checks..."
+
+if command -v pip >/dev/null; then
+    pip install --user pre-commit
+elif command -v pip3 >/dev/null; then
+    pip3 install --user pre-commit
+else
+    error 1 "pip not found; skipping pre-commit installation. Install Python and pip to enable pre-commit checks."
+fi
+
+if command -v pre-commit >/dev/null; then
+    note "Setting up pre-commit hooks..."
+    pre-commit install
+    note "Running pre-commit checks on all files..."
+    pre-commit run --all-files || note "Pre-commit checks completed with issues; review output above."
+else
+    error 1 "pre-commit not installed; skipping setup."
+fi
