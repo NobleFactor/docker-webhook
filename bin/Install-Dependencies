@@ -8,7 +8,6 @@
 # Install-Dependencies - Install required dependencies for docker-webhook
 # shellcheck source=bin/Declare-BashScript
 
-# Documentation is in the accompanying manual page: Install-Dependencies(1).
 source "$(dirname "$0")/Declare-BashScript" "$0" "help" "h" "$@"
 
 ###########
@@ -46,7 +45,7 @@ Darwin)
     if command -v port >/dev/null; then
         sudo port selfupdate
     elif command -v brew >/dev/null; then
-        brew update
+        HOMEBREW_NO_INTERACTIVE=1 brew update
     else
         error 1 "A package manager is required to install prerequisites. Please install HomeBrew or MacPorts.
 Homebrew install instructions: https://brew.sh/
@@ -54,15 +53,13 @@ MacPorts install instructions: https://www.macports.org/install.php
 "
     fi
 
-    # Install Docker
+    # Install Colima Docker (if no docker runtime is available)
 
-    if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
+    if ! (command -v colima || command -v orbctl || [[ -d "/Applications/Docker.app" ]]); then
         if command -v port >/dev/null; then
-            sudo port selfupdate
-            sudo port install colima docker
+            sudo port install -N colima docker
         else
-            brew update
-            brew install colima docker
+            HOMEBREW_NO_INTERACTIVE=1 brew install colima docker
         fi
         note "Starting the docker daemon with: colima start --cpu 2 --memory 4..."
         colima start --cpu 2 --memory 4
@@ -71,21 +68,55 @@ MacPorts install instructions: https://www.macports.org/install.php
         docker run --rm hello-world >/dev/null 2>&1 || error 0 "hello-world run failed; skipping verification"
     fi
 
-    # Install Utilities
+    # Install Utilities (ports gets priority over brew)
 
     if command -v port >/dev/null; then
-        for utility in codespell curl gawk gmake grepcidr ipcalc jq jwt-cli moreutils shellcheck shfmt; do
-            command -v "${utility}" >/dev/null || sudo port install "${utility}"
+        for utility in codespell curl gawk gmake go grepcidr ipcalc jq jwt-cli moreutils shellcheck shfmt; do
+            command -v "${utility}" >/dev/null || sudo port -N install "${utility}"
         done
+    elif command -v brew >/dev/null; then
+        for utility in codespell curl gawk go grepcidr ipcalc jq jwt-cli make moreutils shellcheck shfmt; do
+            command -v "${utility}" >/dev/null || HOMEBREW_NO_INTERACTIVE=1 brew install "${utility}"
+        done
+    fi
+
+    # Install Azure CLI (if not already installed by brew; there is no port for it)
+
+    if command -v brew >/dev/null; then
+        command -v az >/dev/null || HOMEBREW_NO_INTERACTIVE=1 brew install azure-cli
     else
-        for utility in codespell curl gawk grepcidr ipcalc jq jwt-cli make moreutils shellcheck shfmt; do
-            command -v "${utility}" >/dev/null || brew install "${utility}"
-        done
+        error 0 "Azure CLI cannot be installed automatically without HomeBrew. Please install the Azure CLI using the instructions at https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-macos."
     fi
     ;;
 Linux)
     sudo apt-get update
-    sudo apt-get install --yes make build-essential codespell curl gawk grepcidr ipcalc jq moreutils shellcheck shfmt
+    sudo apt-get install --yes build-essential codespell curl gawk golang-go grepcidr ipcalc jq make moreutils shellcheck shfmt
+    sudo "${script_root}/Install-AzureClient"
     sudo "${script_root}/Install-Docker"
     ;;
 esac
+
+note "Installing pre-commit for automated code quality checks..."
+
+if command -v pip >/dev/null; then
+    pip install --user --no-warn-script-location pre-commit
+elif command -v pip3 >/dev/null; then
+    pip3 install --user --no-warn-script-location pre-commit
+else
+    error 1 "pip not found; skipping pre-commit installation. Install Python and pip to enable pre-commit checks."
+fi
+
+# On macOS, create a symlink in ~/.local/bin for consistency
+if [[ "$(uname)" == "Darwin" ]]; then
+    mkdir -p ~/.local/bin
+    ln -sf ~/Library/Python/3.11/bin/pre-commit ~/.local/bin/pre-commit
+fi
+
+if command -v pre-commit >/dev/null; then
+    note "Setting up pre-commit hooks..."
+    pre-commit install
+    note "Running pre-commit checks on all files..."
+    pre-commit run --all-files || note "Pre-commit checks completed with issues; review output above."
+else
+    error 1 "pre-commit not installed; skipping setup."
+fi

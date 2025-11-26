@@ -1,0 +1,22 @@
+.TH INSTALL-AZURECLIENT 1 "November 2025" "Noble Factor" "User Commands"
+.SH NAME
+Install-AzureClient \- Install the Azure CLI on Debian-based systems
+.SH SYNOPSIS
+.B Install-AzureClient
+.RI [ options ]
+.SH DESCRIPTION
+.B Install-AzureClient
+is a script to download and install the Azure CLI on Debian-based Linux systems. It checks for an existing installation and verifies the system type before proceeding.
+.SH OPTIONS
+.TP
+.BR -h , --help
+Show usage information and exit.
+.TP
+.BR --force
+Force reinstallation of Azure CLI even if it is already installed. Without this option, the script will exit successfully if Azure CLI is detected.
+.SH REQUIREMENTS
+Must be run on a Debian-based system (checks for /etc/debian_version).
+.SH AUTHOR
+Noble Factor
+.SH LICENSE
+MIT License

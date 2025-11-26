@@ -128,7 +128,7 @@ curl --fail --show-error --location --retry 3 --retry-delay 2 --output "/tmp/${n
 tar --directory=/ --xz --extract --preserve-permissions --file="/tmp/${noarch_archive}"
 
 rm -f "/tmp/${arch_archive}" "/tmp/${noarch_archive}"
-apt-get purge --auto-remove --yes xz-utils curl
+apt-get purge --auto-remove --yes xz-utils
 EOF
 
 ##### Install webhook and (maybe) webhook-executor
@@ -175,6 +175,7 @@ VOLUME      [ "/usr/local/etc/webhook" ]
 WORKDIR     /usr/local/etc/webhook
 
 COPY data/noblefactor.init /noblefactor.init
-RUN chmod +x /noblefactor.init
+COPY data/Test-WebhookHealth /usr/local/bin/Test-WebhookHealth
+RUN chmod +x /noblefactor.init /usr/local/bin/Test-WebhookHealth
 
 ENTRYPOINT  ["/noblefactor.init", "webhook", "/usr/local/etc/webhook"]
