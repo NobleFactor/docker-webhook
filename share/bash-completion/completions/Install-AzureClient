@@ -3,17 +3,17 @@
 # SPDX-License-Identifier: MIT
 ########################################################################################################################
 
-_install_dependencies_completions()
+_install_azure_client_completions()
 {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help"
+    opts="--help --force"
 
     if [[ ${cur} == -* ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
         return 0
     fi
 }
-complete -F _install_dependencies_completions Install-Dependencies
+complete -F _install_azure_client_completions Install-AzureClient

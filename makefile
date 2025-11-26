@@ -176,7 +176,6 @@ HELP_COLWIDTH ?= 28
 	New-WebhookContainer \
 	New-WebhookImage \
 	New-WebhookKeys \
-	New-WebhookAzureAuth \
 	New-WebhookExecutorToken \
 	Prepare-WebhookDeployment \
 	Restart-Webhook \
@@ -458,9 +457,8 @@ Update-WebhookKeys: $(ssh_keys) ## Copy SSH keys into container volume for LOCAT
 	cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
 
 Update-WebhookCertificates: $(ssl_certificates) ## Copy SSL certificates into container volume for LOCATION
-	mkdir --parent "$(volume_root)/ssl-certificates" "$(volume_root)/ssh"
+	mkdir --parent "$(volume_root)/ssl-certificates"
 	cp --preserve --verbose $(ssl_certificates) "$(volume_root)/ssl-certificates"
-	cp --preserve --verbose $(ssh_keys) "$(volume_root)/ssh"
 	echo -e "\n\033[1mWhat's next:\033[0m"
 	echo "    Ensure that Webhook in us-wa loads new certificates: make Restart-Webhook"
 

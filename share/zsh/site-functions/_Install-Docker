@@ -5,7 +5,4 @@
 
 #compdef Install-Docker
 _arguments \
-  '--help[Show usage information and exit]' \
-  '--no-install-recommends[Install only essential packages]' \
-  '--dry-run[Show actions without making changes]' \
-  '--force[Force reinstallation of Docker packages]'
+  '--help[Show usage information and exit]'

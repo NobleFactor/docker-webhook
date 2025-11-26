@@ -9,7 +9,7 @@ _test_webhook_executor_integration_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--command --container --destination --location --trigger --help"
+    opts="--command --location --trigger --help"
 
     if [[ ${cur} == -* ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
