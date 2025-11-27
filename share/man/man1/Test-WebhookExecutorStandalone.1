@@ -50,12 +50,12 @@ The script splits the string on semicolons and executes each command in-order wh
 spaces and quotes.
 .TP
 .B --location LOCATION
-Required. The location identifier (e.g., us-wa) used to source the hooks environment file
-from webhook.config/LOCATION/hooks.env and set WEBHOOK_CONFIG.
+Required. The location identifier (e.g., us-wa) used to source the service environment file
+from webhook.config/LOCATION/service.env and set WEBHOOK_CONFIG.
 .TP
 .B --location LOCATION
 Required. The location identifier (e.g., us-wa). The test sources credentials and Key Vault-related variables
-from the location-specific hooks.env (webhook.config/LOCATION/hooks.env). The script may also invoke
+from the location-specific service.env (webhook.config/LOCATION/service.env). The script may also invoke
 the bundled bin/New-WebhookExecutorToken to obtain or refresh a JWT token as needed.
 .SH EXIT STATUS
 The script exits with code 0 if all tests pass, or 1 if any test fails. Individual command

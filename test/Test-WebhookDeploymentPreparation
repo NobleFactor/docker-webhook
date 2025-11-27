@@ -62,16 +62,16 @@ pushd "${script_root}/.." || exit
 
 declare -r baseline_dir="test/baseline"
 
-declare -r baseline_env_file="${baseline_dir}/webhook-${location}.env"
+declare -r baseline_env_file="${baseline_dir}/webhook.config/${location}/certificate-request.env"
 declare -r baseline_secrets_dir="${baseline_dir}/webhook.config"
 declare -r baseline_certificates_dir="${baseline_secrets_dir}/${location}/ssl-certificates"
 
-declare -r generated_env_file="webhook-${location}.env"
+declare -r generated_env_file="webhook.config/${location}/certificate-request.env"
 declare -r generated_secrets_dir="webhook.config"
 declare -r generated_certificates_dir="${generated_secrets_dir}/${location}/ssl-certificates"
 
 note "Removing old generated artifacts..."
-rm --verbose -rf "${generated_secrets_dir:?}/${location:?}" "${generated_env_file:?}"
+rm --verbose -rf "${generated_secrets_dir:?}/${location:?}"
 
 note "Generating artifacts with bin/Prepare-WebhookDeployment --env-file=${baseline_env_file}..."
 echo >&2 && bin/Prepare-WebhookDeployment --env-file="${baseline_env_file}"

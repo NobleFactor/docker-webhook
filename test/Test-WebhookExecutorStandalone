@@ -76,20 +76,20 @@ declare -r location
 # Main
 ###########
 
-# Source hooks environment so that webhook-executor sees the environment it has when running in is container
+# Source service environment so that webhook-executor sees the environment it has when running in is container
 
 cd "${script_root}/.." && declare -r webhook_config=$(realpath "webhook.config/$location")
-declare -r hooks_env="${webhook_config}/hooks.env"
+declare -r service_env="${webhook_config}/service.env"
 
-if [[ ! -f "$hooks_env" ]]; then
-    error 1 "Hooks environment file not found: $hooks_env"
+if [[ ! -f "$service_env" ]]; then
+    error 1 "Service environment file not found: $service_env"
 fi
 
-source "$hooks_env"
+source "$service_env"
 
 # Ensure we've got a fresh authorization token
 
-declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${hooks_env}")"
+declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${service_env}")"
 
 # Fetch AZURE_CLIENT_SECRET from key vault and create a new auth token
 

@@ -42,7 +42,7 @@ Required. The container name where the webhook service is running (the script us
 Required. The SSH destination used by the webhook route (e.g., user@host or ssh://user@host:port).
 .TP
 .B --location LOCATION
-Required. The location identifier used to discover the volume-based hooks environment (volumes/LOCATION/hooks.env).
+Required. The location identifier used to discover the volume-based service environment (volumes/LOCATION/service.env).
 .TP
 .B --trigger TRIGGER
 Required. An identifier included in the webhook request path as the hook id (the request is made to /hooks/<trigger>). Integration tests will fail with a 404 if this is omitted.

@@ -148,8 +148,8 @@ RUN echo webhook > /etc/services.d/webhook/user
 RUN install --owner=root --group=root --mode=0755 /dev/stdin /etc/services.d/webhook/run <<'EOF'
 #!/bin/sh -e
 # shellcheck shell=sh
-if [ -f "/usr/local/etc/webhook/hooks.env" ]; then
-    . "/usr/local/etc/webhook/hooks.env"
+if [ -f "/usr/local/etc/webhook/service.env" ]; then
+    . "/usr/local/etc/webhook/service.env"
 fi
 exec s6-envdir /etc/services.d/webhook/env webhook -verbose \
     -hooks="/usr/local/etc/webhook/hooks.json" \
