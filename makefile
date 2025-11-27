@@ -89,7 +89,6 @@ TAG ?= 1.0.0-preview.1
 override project_name := webhook
 override project_root := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
 override project_file := $(project_root)/compose.yaml
-override project_networks_file := $(project_root)/$(project_name).networks.yaml
 
 # Compose file may not exist initially; targets below will ensure generation when needed.
 
@@ -165,7 +164,7 @@ docker_compose := sudo \
 	WEBHOOK_PGID="$(WEBHOOK_PGID)" \
     WEBHOOK_VOLUME="${volume_root}" \
 	AZURE_CLIENT_SECRET="$${AZURE_CLIENT_SECRET:-}" \
-    docker compose -f "$(project_file)" -f "$(project_networks_file)"
+    docker compose -f "$(project_file)"
 
 HELP_COLWIDTH ?= 28
 
