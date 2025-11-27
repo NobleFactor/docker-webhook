@@ -119,21 +119,17 @@ EOF
 # Create docker compose and certificate request files
 
 declare -r ssl_certificates_dir="${ROLE}.config/${LOCATION}/ssl-certificates"
-declare -r compose_file="${ROLE}-${LOCATION}.yaml"
 mkdir -p "$ssl_certificates_dir"
 
 envsubst <certificate-request.conf.template >"$ssl_certificates_dir/certificate-request.conf"
-envsubst <services.yaml.template >"$compose_file"
 
 note "Generated:"
 note "  $ssl_certificates_dir/certificate-request.conf"
-note "  $compose_file"
 
 note "Saved environment variables to $env_file"
 
-# Set secure file and directory permissions separately so directories remain traversable (execute bit) while regular
-# files are not executable.
+# Set secure file and directory permissions separately so directories are traversable while files are not executable.
 # Directories => 700 (rwx------)
-# Files       => 600 (rw-------)
 find "${ROLE}.config/${LOCATION}" -type d -exec chmod 700 {} +
+# Files       => 600 (rw-------)
 find "${ROLE}.config/${LOCATION}" -type f -exec chmod 600 {} +
