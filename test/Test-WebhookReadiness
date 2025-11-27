@@ -89,7 +89,7 @@ success=0
 docker exec "$container_name" bash -c '
     set -o errexit
     expected_files=(
-        "hooks.env"
+        "service.env"
         "hooks.json"
         "ssl-certificates/certificate.pem"
         "ssl-certificates/certificate-request.conf"

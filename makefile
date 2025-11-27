@@ -117,7 +117,7 @@ override ssh_keys := \
 #### webhook hooks and webhook-executor environment
 
 override webhook_hooks := $(project_root)/$(ROLE).config/$(LOCATION)/hooks.json
-override webhook_env := $(project_root)/$(ROLE).config/$(LOCATION)/hooks.env
+override service_env := $(project_root)/$(ROLE).config/$(LOCATION)/service.env
 
 ### CONTAINER VOLUMES
 
@@ -317,14 +317,14 @@ Test-ShellScript: ## Run shellcheck wrapper script against shell scripts
 	echo "==> Running Test-ShellScript"
 	./test/Test-ShellScript --paths bin,test --recurse || { echo "Test-ShellScript failed"; exit 1; }
 
-Test-WebhookExecutorIntegration: ## Run `test/Test-WebhookExecutorIntegration` against the webhook; requires `DESTINATION` and `LOCATION`, uses `CONTAINER_HOSTNAME` for the container name and reads Key Vault settings from `volumes/$(LOCATION)/hooks.env`; commands are provided via `COMMAND` (separated by `;`)
+Test-WebhookExecutorIntegration: ## Run `test/Test-WebhookExecutorIntegration` against the webhook; requires `DESTINATION` and `LOCATION`, uses `CONTAINER_HOSTNAME` for the container name and reads Key Vault settings from `volumes/$(LOCATION)/service.env`; commands are provided via `COMMAND` (separated by `;`)
 	$(if $(LOCATION),, $(error LOCATION not set))
 	$(if $(TRIGGER),, $(error TRIGGER not set))
 	$(if $(COMMAND),, $(error COMMAND not set))
 	echo "==> Running Test-WebhookExecutorIntegration with commands: $(COMMAND)"
 	./test/Test-WebhookExecutorIntegration --location "$(LOCATION)" --trigger "$(TRIGGER)" --command "$(COMMAND)"
 
-Test-WebhookExecutorStandalone: ## Run `test/Test-WebhookExecutorStandalone` directly against the binary; reads `webhook.config/$(LOCATION)/hooks.env` for Key Vault and secret configuration and accepts commands via `WEBHOOK_EXECUTOR_COMMAND` (separated by `;`)
+Test-WebhookExecutorStandalone: ## Run `test/Test-WebhookExecutorStandalone` directly against the binary; reads `webhook.config/$(LOCATION)/service.env` for Key Vault and secret configuration and accepts commands via `WEBHOOK_EXECUTOR_COMMAND` (separated by `;`)
 	$(if $(COMMAND),, $(error COMMAND not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
@@ -341,8 +341,8 @@ Test-WebhookReadiness:
 
 ##@ Build and Create
 
-Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than webhook-$(LOCATION).env
-	env_file="$(project_root)/$(ROLE)-$(LOCATION).env"
+Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than certificate-request-$(LOCATION).env
+	env_file="$(project_root)/certificate-request-$(LOCATION).env"
 	if [[ ! -f "$$env_file" ]]; then
 		echo "Missing environment file: $$env_file"
 		exit 1
@@ -369,7 +369,7 @@ New-WebhookCertificates: $(ssl_certificates_root)/certificate-request.conf ## Ge
 	openssl req -new -config certificate-request.conf -nodes -key private-key.pem -out self-signed.csr
 	chmod 600 * && chmod 700 .
 
-New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(webhook_env) ## Create container from existing image and prepare volumes
+New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_hooks) $(service_env) ## Create container from existing image and prepare volumes
 	$(if $(WEBHOOK_KEYVAULT_NAME),, $(error WEBHOOK_KEYVAULT_NAME not set))
 	$(if $(LOCATION),, $(error LOCATION not set))
 
@@ -390,7 +390,7 @@ New-WebhookContainer: $(project_file) $(ssh_keys) $(ssl_certificates) $(webhook_
 	bin/New-DockerNetwork --device "$(network_device)" --driver "$(network_driver)" --ip-range "$(IP_RANGE)" webhook
 
 	export AZURE_CLIENT_SECRET="$$(az keyvault secret show --vault-name "$(WEBHOOK_KEYVAULT_NAME)" --name "$(WEBHOOK_AZURE_CLIENT_SECRET_NAME)" --query value -o tsv)"
-	source "volumes/$(LOCATION)/hooks.env"
+	source "volumes/$(LOCATION)/service.env"
 	$(docker_compose) create --force-recreate --pull never --remove-orphans
 
 	sudo docker inspect "$(CONTAINER_HOSTNAME)"
@@ -466,18 +466,18 @@ Update-WebhookHooks: $(webhook_hooks) $(webhook_command) ## Copy hooks.json and 
 	mkdir --parent "$(volume_root)"
 	cp --preserve --verbose "$(webhook_hooks)" "$(volume_root)"
 
-Update-WebhookHooksEnv: ## Copy hooks.env to webhook volumes
+Update-WebhookServiceEnv: ## Copy service.env to webhook volumes
 	mkdir --parent "$(volume_root)"
-	cp --preserve --verbose "webhook.config/$(LOCATION)/hooks.env" "$(volume_root)/hooks.env"
+	cp --preserve --verbose "webhook.config/$(LOCATION)/service.env" "$(volume_root)/service.env"
 	echo -e "\n\033[1mWhat's next:\033[0m"
-	echo "    Restart Webhook to load new hooks.env: make Restart-Webhook"
+	echo "    Restart Webhook to load new service.env: make Restart-Webhook"
 
 ## BUILD RULES
 
 # ssl certificates
 
-$(ssl_certificates_root)/certificate-request.conf: $(project_root)/webhook-$(LOCATION).env
-	$(project_root)/bin/Prepare-WebhookDeployment --env-file $(project_root)/webhook-$(LOCATION).env
+$(ssl_certificates_root)/certificate-request.conf: $(certificate_request_template)
+	$(project_root)/bin/Prepare-WebhookDeployment --env-file $(project_root)/certificate-request-$(LOCATION).env
 
 $(ssl_certificates): $(ssl_certificates_root)/certificate-request.conf
 	echo $(ssl_certificates)
@@ -496,7 +496,7 @@ $(container_keys): $(ssh_keys)
 
 ### webhook hooks
 
-$(webhook_env):
+$(service_env):
 	$(MAKE) New-WebhookExecutorToken
 
 $(webhook_hooks):
@@ -507,18 +507,18 @@ $(container_hooks):
 
 ## Location artifact rules: if missing or stale vs env/templates, (re)generate via Prepare-WebhookDeployment
 
-override env_file := $(project_root)/webhook-$(LOCATION).env
+override env_file := $(project_root)/$(ROLE).config/$(LOCATION)/certificate-request.env
 override env_stamp := $(project_root)/.env-$(LOCATION).stamp
-override compose_template := $(project_root)/services.yaml.template
-override certreq_template := $(project_root)/certificate-request.conf.template
+
+override certificate_request_template := $(project_root)/certificate-request.conf.template
 
 $(env_file):
 	echo "Missing environment file: $@"
-	echo "Create it or symlink it into the project root (e.g., from test/baseline)."
-	echo "Expected path: $(project_root)/$(ROLE)-$(LOCATION).env"
+	echo "Create it or symlink it into the config directory (e.g., from test/baseline)."
+	echo "Expected path: $(project_root)/$(ROLE).config/$(LOCATION)/certificate-request.env"
 
 $(env_stamp): $(env_file)
 	touch "$@"
 
-$(project_file): $(compose_template) $(certreq_template) $(env_stamp)
+$(project_file): $(certificate_request_template) $(env_stamp)
 	$(MAKE) Prepare-WebhookDeployment

@@ -100,9 +100,12 @@ if [[ -z "${EMAIL_ADDRESS:-}" ]]; then error 1 "Missing value for email-address"
 # Main
 ###########
 
-# Save exported environment variables to ${ROLE}-$(LOCATION).env
+# Save exported environment variables to ${ROLE}.config/${LOCATION}/certificate-request.env
 
-env_file="${ROLE}-${LOCATION}.env"
+env_file="${ROLE}.config/${LOCATION}/certificate-request.env"
+
+# Create the config directory if it doesn't exist
+mkdir -p "${ROLE}.config/${LOCATION}"
 
 cat >"$env_file" <<EOF
 ROLE="${ROLE}"

@@ -64,7 +64,7 @@ az ad sp create-for-rbac --name "webhook-executor-sp" --role reader --scopes /su
 The `webhook.config/` directory contains your deployment configuration:
 
 - **`hooks.json`**: Defines webhook rules and command execution logic
-- **`hooks.env`**: Environment variables for webhook configuration
+- **`service.env`**: Environment variables for webhook configuration
 - **`command/`**: Custom scripts executed by webhooks
 - **`ssl-certificates/`**: TLS certificates for HTTPS
 - **`ssh/`**: SSH keys for secure operations

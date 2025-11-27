@@ -18,7 +18,7 @@ New-WebhookExecutorToken \- generate a JWT token with a random secret, save both
 .B New-WebhookExecutorToken
 generates a JSON Web Token (JWT) with a random 128-byte shared secret,
 saves both the secret and the JWT to Azure Key Vault, updates the
-\fBhooks.env\fR file for the specified \fBlocation\fR, and outputs the JWT to stdout.
+\fBservice.env\fR file for the specified \fBlocation\fR, and outputs the JWT to stdout.
 .PP
 The script requires
 .BR az (1)
@@ -73,14 +73,14 @@ New-WebhookExecutorToken --keyvault-name myvault --location us-wa --secret-name 
 .TP
 Load configuration from environment file:
 .nf
-New-WebhookExecutorToken --env-file webhook-us-wa.env --location us-wa
+New-WebhookExecutorToken --env-file certificate-request-us-wa.env --location us-wa
 .fi
 .SH EXIT STATUS
 The script exits with status 0 on success, or non-zero on error (e.g., missing
 required arguments, Azure authentication failure, or Key Vault access issues).
 .SH FILES
 .TP
-.I webhook.config/LOCATION/hooks.env
+.I webhook.config/LOCATION/service.env
 Updated with Key Vault URL, secret name, and location variables.
 .SH SEE ALSO
 .BR az (1),

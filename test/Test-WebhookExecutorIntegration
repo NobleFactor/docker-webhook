@@ -115,13 +115,13 @@ webhook_url="https://localhost:${webhook_port}/hooks/"
 
 # Get a fresh authorization token
 
-declare -r webhook_env="$(realpath -q "${script_root}/../volumes/${location}/hooks.env")"
+declare -r service_env="$(realpath -q "${script_root}/../volumes/${location}/service.env")"
 
-if [[ ! -f "${webhook_env}" ]]; then
-    error 1 "Webhook environment file not found: ${webhook_env}"
+if [[ ! -f "${service_env}" ]]; then
+    error 1 "Webhook environment file not found: ${service_env}"
 fi
 
-declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${webhook_env}")"
+declare -r auth_token="$("${script_root}/../bin/New-WebhookExecutorToken" --silent --env-file "${service_env}")"
 
 # Start the test container
 
