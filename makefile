@@ -342,7 +342,7 @@ Test-WebhookReadiness:
 ##@ Build and Create
 
 Prepare-WebhookDeployment: ## Ensure deployment artifacts exist; regenerate if missing or older than certificate-request-$(LOCATION).env
-	env_file="$(project_root)/certificate-request-$(LOCATION).env"
+	env_file="$(project_root)/webhook.config/$(LOCATION)/certificate-request.env"
 	if [[ ! -f "$$env_file" ]]; then
 		echo "Missing environment file: $$env_file"
 		exit 1

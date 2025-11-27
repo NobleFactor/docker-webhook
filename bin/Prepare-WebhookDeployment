@@ -17,9 +17,10 @@ source "$(dirname "$0")/Declare-BashScript" "$0" \
 # Arguments
 ###########
 
-declare -r synopsis="${script_name} [--env-file <file>] [--role <role> --location <location> \
---country-code <cc> --state-or-province <state> --city <city> --organization-name <org> \
---organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
+declare -r synopsis="${script_name} [--env-file <file>] [--role <role> --location <location>\
+ --country-code <cc> --state-or-province <state> --city <city> --organization-name <org>\
+ --organizational-unit <ou> --domain-name <domain> --email-address <email>] [-h|--help]"
+
 eval set -- "$script_arguments"
 
 while :; do
@@ -86,15 +87,32 @@ done
 # Constants
 ###########
 
-if [[ -z "${ROLE:-}" ]]; then error 1 "Missing value for role"; fi
-if [[ -z "${LOCATION:-}" ]]; then error 1 "Missing value for location"; fi
-if [[ -z "${COUNTRY_CODE:-}" ]]; then error 1 "Missing value for country-code"; fi
-if [[ -z "${STATE_OR_PROVINCE:-}" ]]; then error 1 "Missing value for state-or-province"; fi
-if [[ -z "${CITY:-}" ]]; then error 1 "Missing value for city"; fi
-if [[ -z "${ORGANIZATION_NAME:-}" ]]; then error 1 "Missing value for organization-name"; fi
-if [[ -z "${ORGANIZATIONAL_UNIT:-}" ]]; then error 1 "Missing value for organizational-unit"; fi
-if [[ -z "${DOMAIN_NAME:-}" ]]; then error 1 "Missing value for domain-name"; fi
-if [[ -z "${EMAIL_ADDRESS:-}" ]]; then error 1 "Missing value for email-address"; fi
+[[ -n "${ROLE:-}" ]] || error 1 "Missing value for role"
+declare -r ROLE
+
+[[ -n "${LOCATION:-}" ]] || error 1 "Missing value for location"
+declare -r LOCATION
+
+[[ -n "${COUNTRY_CODE:-}" ]] || error 1 "Missing value for country-code"
+declare -r COUNTRY_CODE
+
+[[ -n "${STATE_OR_PROVINCE:-}" ]] || error 1 "Missing value for state-or-province"
+declare -r STATE_OR_PROVINCE
+
+[[ -n "${CITY:-}" ]] || error 1 "Missing value for city"
+declare -r CITY
+
+[[ -n "${ORGANIZATION_NAME:-}" ]] || error 1 "Missing value for organization-name"
+declare -r ORGANIZATION_NAME
+
+[[ -n "${ORGANIZATIONAL_UNIT:-}" ]] || error 1 "Missing value for organizational-unit"
+declare -r ORGANIZATIONAL_UNIT
+
+[[ -n "${DOMAIN_NAME:-}" ]] || error 1 "Missing value for domain-name"
+declare -r DOMAIN_NAME
+
+[[ -n "${EMAIL_ADDRESS:-}" ]] || error 1 "Missing value for email-address"
+declare -r EMAIL_ADDRESS
 
 ###########
 # Main
