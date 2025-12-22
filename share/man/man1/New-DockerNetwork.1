@@ -1,10 +1,15 @@
 .\" SPDX-FileCopyrightText: 2016-2025 Noble Factor
 .\" SPDX-License-Identifier: MIT
-.TH New-DockerNetwork 1 "November 2025" "docker-webhook" "User Commands"
+.TH New-DockerNetwork 1 "December 2025" "Noble Factor" "User Commands"
 .SH NAME
 New-DockerNetwork \- create a Docker network using Noble Factor conventions
 .SH SYNOPSIS
 New-DockerNetwork [OPTIONS] SERVICE-NAME
+[\fB\-h\fR|\fB\-\-help\fR]
+[\fB\-\-device\fR=\fIDEVICE-NAME\fR]
+[\fB\-d\fR|\fB\-\-driver\fR=\fIDRIVER-NAME\fR]
+[\fB\-\-ip-range\fR=\fIIP-RANGE\fR]
+\fISERVICE-NAME\fR
 .SH DESCRIPTION
 Create a Docker network using Noble Factor conventions. The network is named as 
 \fISERVICE-NAME\fB:\fIDEVICE-NAME\fR. If you do not specify a device name, the 
