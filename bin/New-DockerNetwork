@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck source=bin/Declare-BashScript
 
-########################################################################################################################
-# SPDX-FileCopyrightText: 2016-2025 Noble Factor
 # SPDX-License-Identifier: MIT
-########################################################################################################################
+# Copyright (c) 2025 Noble Factor. All rights reserved.
+# Redistribution and use in source and binary forms, with or without modification, are permitted under the terms of the MIT License.
 
 # New-DockerNetwork - create a docker network using Noble Factor conventions
 
@@ -13,7 +12,8 @@
 # Reference:
 #
 # 1. dockerdocs: docker network create
-#    https://docs.docker.com/reference/cli/docker/network/create/#:~:text=$%20docker%20network%20create%20%2Dd%20bridge,responsibility%20to%20avoid%20name%20conflicts.
+#    https://docs.docker.com/reference/cli/docker/network/create/
+#    (see the "docker network create -d bridge" section; responsibility to avoid name conflicts)
 #
 # 2. dockerdocs: Macvlan network driver
 #    https://docs.docker.com/engine/network/drivers/macvlan/
@@ -154,7 +154,7 @@ if [[ -z ${ip_range:-} ]]; then
 else
     case $driver_name in
     ipvlan | macvlan)
-        declare -r address_pool="$(ipcalc "${ip_range}" | awk '/^HostMin: / { print $2; exit }')"
+        declare -r address_pool="$(ipcalc "${ip_range}" | awk '/^HostMin: / { print $2; exit }')/$(ipcalc "${ip_range}" | awk '/^Netmask: / { print $4; exit }')"
         declare -r host_address="$(ipcalc "${ip_range}" | awk '/^HostMax: / { print $2; exit }')"
         ;;
     bridge | host | none)
@@ -216,12 +216,11 @@ sudo ip link del "${service_name:0:10}_shim" 2>/dev/null || true
 
 # Create the docker network
 
-sudo docker network create --driver "${driver_name}" \
-    --ipv4 --subnet="${ipv4_subnet}" --gateway="${ipv4_gateway}" \
+sudo docker network create --driver "${driver_name}" --ipv4 --subnet="${ipv4_subnet}" --gateway="${ipv4_gateway}" \
     $([[ -n ${address_pool:-} ]] && echo --ip-range "${address_pool}") \
     $([[ "${driver_name}" == macvlan || "${driver_name}" == ipvlan ]] && echo --opt parent="${device_name}") \
     $([[ -n ${host_address:-} ]] && echo --aux-address hostshim="${host_address}") \
-    $([[ $OSTYPE == linux-gnu* && -n ${ipv6_subnet:-} ]] && echo --ipv6 --subnet="${ipv6_subnet}") \
+    $([[ $OSTYPE == linux-gnu* && -n ${ipv6_subnet:-} ]] && echo --ipv6) \
     "${network_name}" >/dev/null
 
 declare -r link_name="$(get_linkname "${network_name}")"
